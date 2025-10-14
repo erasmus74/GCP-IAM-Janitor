@@ -9,6 +9,9 @@ if [[ $1 == "enhanced" ]]; then
 elif [[ $1 == "consolidation" ]]; then
     APP_FILE="app_consolidation.py"
     VERSION="Consolidation Dashboard"
+elif [[ $1 == "advanced" ]]; then
+    APP_FILE="app_advanced.py"
+    VERSION="Advanced (All Features)"
 else
     APP_FILE="app_simple.py"
     VERSION="Simple"
@@ -58,6 +61,7 @@ echo "💡 Usage:"
 echo "   ./run.sh              # Run simple version"
 echo "   ./run.sh enhanced     # Run enhanced version with AI insights"
 echo "   ./run.sh consolidation # Run consolidation dashboard (IAM policy reduction focus)"
+echo "   ./run.sh advanced     # Run advanced version with ALL features"
 echo
 echo "Press Ctrl+C to stop the application"
 echo

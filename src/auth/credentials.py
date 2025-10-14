@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 from google.auth import default
 from google.auth.credentials import Credentials
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
+from google.auth.transport.requests import Request
 import streamlit as st
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ class CredentialsManager:
             
             # Validate credentials by attempting a refresh if needed
             if credentials.expired:
-                credentials.refresh(default.Request())
+                credentials.refresh(Request())
             
             self._credentials = credentials
             self._project_id = project_id
@@ -99,7 +100,7 @@ class CredentialsManager:
             
             # Check if credentials are expired and try to refresh
             if credentials.expired:
-                credentials.refresh(default.Request())
+                credentials.refresh(Request())
             
             return not credentials.expired
         except Exception as e:
@@ -233,3 +234,25 @@ def clear_auth():
             del st.session_state[key]
     
     get_credentials_manager().clear_credentials()
+
+
+def get_authenticated_credentials() -> Optional[Credentials]:
+    """
+    Get authenticated credentials for GCP services.
+    
+    This is a simplified wrapper function for compatibility with
+    the advanced dashboard modules.
+    
+    Returns:
+        Optional[Credentials]: The authenticated credentials or None if authentication fails
+    """
+    try:
+        cred_manager = get_credentials_manager()
+        credentials, _ = cred_manager.get_credentials()
+        return credentials
+    except AuthenticationError as e:
+        logger.error(f"Failed to get authenticated credentials: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error getting credentials: {e}")
+        return None

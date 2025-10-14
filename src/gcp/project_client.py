@@ -8,6 +8,7 @@ import logging
 from typing import List, Dict, Optional, Any
 from google.auth.credentials import Credentials
 from google.cloud import resourcemanager
+from google.iam.v1 import iam_policy_pb2
 from google.api_core.exceptions import (
     GoogleAPIError, 
     NotFound, 
@@ -55,27 +56,35 @@ class ProjectClient:
         try:
             logger.info("Fetching list of accessible projects...")
             
-            request = resourcemanager.ListProjectsRequest()
+            # Use search_projects which doesn't require parent parameter
+            # This returns all projects the user has access to
+            request = resourcemanager.SearchProjectsRequest()
             if filter_expression:
-                request.filter = filter_expression
+                request.query = filter_expression
             
             projects = []
-            for project in self.resource_manager.list_projects(request=request):
+            for project in self.resource_manager.search_projects(request=request):
+                # Use camelCase keys to match expected format in the UI
                 project_dict = {
-                    'project_id': project.project_id,
+                    'projectId': project.project_id,
+                    'project_id': project.project_id,  # Keep both for compatibility
                     'name': project.name,
-                    'display_name': getattr(project, 'display_name', project.name),
-                    'lifecycle_state': project.lifecycle_state.name if project.lifecycle_state else 'UNKNOWN',
-                    'project_number': project.project_number,
-                    'create_time': project.create_time,
+                    'displayName': getattr(project, 'display_name', project.name),
+                    'display_name': getattr(project, 'display_name', project.name),  # Keep both
+                    'lifecycleState': getattr(project.state, 'name', 'UNKNOWN') if hasattr(project, 'state') else 'ACTIVE',
+                    'lifecycle_state': getattr(project.state, 'name', 'UNKNOWN') if hasattr(project, 'state') else 'ACTIVE',  # Keep both
+                    'projectNumber': getattr(project, 'project_number', ''),
+                    'project_number': getattr(project, 'project_number', ''),  # Keep both
+                    'createTime': getattr(project, 'create_time', None),
+                    'create_time': getattr(project, 'create_time', None),  # Keep both
                     'parent': {}
                 }
                 
                 # Add parent information if available
-                if project.parent:
+                if hasattr(project, 'parent') and project.parent:
                     project_dict['parent'] = {
-                        'type': project.parent.type,
-                        'id': project.parent.id
+                        'type': getattr(project.parent, 'type', ''),
+                        'id': getattr(project.parent, 'id', '')
                     }
                 
                 # Add labels if available
@@ -149,6 +158,20 @@ class ProjectClient:
             logger.error(f"Unexpected error getting project metadata: {e}")
             raise
     
+    def get_iam_policy(self, project_id: str) -> Optional[ResourceIAMPolicy]:
+        """
+        Get IAM policy for a specific project.
+        
+        Alias for get_project_iam_policy for backward compatibility.
+        
+        Args:
+            project_id: The project ID
+            
+        Returns:
+            Optional[ResourceIAMPolicy]: IAM policy or None if not accessible
+        """
+        return self.get_project_iam_policy(project_id)
+    
     def get_project_iam_policy(self, project_id: str) -> Optional[ResourceIAMPolicy]:
         """
         Get IAM policy for a specific project.
@@ -162,7 +185,7 @@ class ProjectClient:
         try:
             logger.debug(f"Fetching IAM policy for project: {project_id}")
             
-            request = resourcemanager.GetIamPolicyRequest(
+            request = iam_policy_pb2.GetIamPolicyRequest(
                 resource=f"projects/{project_id}"
             )
             

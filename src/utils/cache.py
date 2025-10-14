@@ -460,6 +460,39 @@ def generate_recommendations(
     return recommendations
 
 
+def cache_data(key: str, value: Any, ttl: int = 600) -> None:
+    """
+    Convenience function to cache data.
+    
+    Args:
+        key: Cache key
+        value: Value to cache
+        ttl: Time to live in seconds (default 600 = 10 minutes)
+    """
+    ttl_delta = timedelta(seconds=ttl)
+    _cache_manager.set(key, value, ttl_delta)
+
+
+def get_cached_data(key: str) -> Optional[Any]:
+    """
+    Convenience function to get cached data.
+    
+    Args:
+        key: Cache key
+        
+    Returns:
+        Optional[Any]: Cached value or None if not found/expired
+    """
+    return _cache_manager.get(key)
+
+
+def clear_cache() -> None:
+    """
+    Convenience function to clear all cached data.
+    """
+    _cache_manager.clear()
+
+
 def format_time_ago(timestamp: datetime) -> str:
     """
     Format a timestamp as a human-readable "time ago" string.

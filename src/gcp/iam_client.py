@@ -7,7 +7,7 @@ Handles IAM roles, permissions, and policy analysis operations.
 import logging
 from typing import List, Dict, Set, Optional, Any, Tuple
 from google.auth.credentials import Credentials
-from google.cloud import iam_v1
+from google.cloud import iam_admin_v1
 from google.api_core.exceptions import (
     GoogleAPIError,
     NotFound,
@@ -42,10 +42,10 @@ class IAMClient:
         self._iam_service = None
     
     @property
-    def iam_service(self) -> iam_v1.IAMClient:
+    def iam_service(self) -> iam_admin_v1.IAMClient:
         """Get or create IAM service client."""
         if self._iam_service is None:
-            self._iam_service = iam_v1.IAMClient(credentials=self.credentials)
+            self._iam_service = iam_admin_v1.IAMClient(credentials=self.credentials)
         return self._iam_service
     
     def list_roles(self, parent: Optional[str] = None, show_deleted: bool = False) -> List[Role]:
@@ -66,9 +66,9 @@ class IAMClient:
             if parent is None:
                 logger.info("Fetching predefined IAM roles...")
                 
-                request = iam_v1.ListRolesRequest(
+                request = iam_admin_v1.ListRolesRequest(
                     show_deleted=show_deleted,
-                    view=iam_v1.RoleView.FULL
+                    view=iam_admin_v1.RoleView.FULL
                 )
                 
                 for role in self.iam_service.list_roles(request=request):
@@ -85,10 +85,10 @@ class IAMClient:
                 # List custom roles for the specified parent
                 logger.info(f"Fetching custom roles for parent: {parent}")
                 
-                request = iam_v1.ListRolesRequest(
+                request = iam_admin_v1.ListRolesRequest(
                     parent=parent,
                     show_deleted=show_deleted,
-                    view=iam_v1.RoleView.FULL
+                    view=iam_admin_v1.RoleView.FULL
                 )
                 
                 for role in self.iam_service.list_roles(request=request):
@@ -127,7 +127,7 @@ class IAMClient:
         try:
             logger.debug(f"Fetching role details: {role_name}")
             
-            request = iam_v1.GetRoleRequest(name=role_name)
+            request = iam_admin_v1.GetRoleRequest(name=role_name)
             role = self.iam_service.get_role(request=request)
             
             role_obj = Role.from_api_response({

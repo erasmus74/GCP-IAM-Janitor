@@ -74,9 +74,14 @@ A comprehensive web application for inventorying, analyzing, and managing Google
    ./run.sh enhanced
    ```
    
-   **🎯 Consolidation Dashboard (NEW - IAM Policy Reduction Focus):**
+   **🎯 Consolidation Dashboard (IAM Policy Reduction Focus):**
    ```bash
    ./run.sh consolidation
+   ```
+   
+   **🚀 Advanced Dashboard (NEW - ALL Advanced Features):**
+   ```bash
+   ./run.sh advanced
    ```
    
    Or manually:
@@ -143,6 +148,41 @@ Your authenticated account needs the following IAM permissions:
 - `Security Reviewer` (roles/iam.securityReviewer)
 - `Organization Viewer` (roles/resourcemanager.organizationViewer)
 - `Project Viewer` (roles/viewer) on target projects
+
+**For Advanced Features (Enhanced Identity Analysis & Audit Trail Integration):**
+- `Cloud Identity Groups Reader` (for group membership resolution)
+- `Logging Viewer` (roles/logging.viewer) for audit log analysis
+- `Cloud Identity API access` (requires domain admin consent for Google Workspace)
+
+### 🔧 Configuration for Advanced Features
+
+#### Cloud Identity API Setup (Optional)
+For enhanced identity analysis with group membership resolution:
+
+1. **Enable Cloud Identity API:**
+   ```bash
+   gcloud services enable cloudidentity.googleapis.com
+   ```
+
+2. **Set up domain-wide delegation** (for Google Workspace customers):
+   - Follow Google's [domain-wide delegation guide](https://developers.google.com/identity/protocols/oauth2/service-account#delegatingauthority)
+   - Grant necessary scopes for Cloud Identity API
+
+#### Audit Logging Configuration
+For comprehensive audit trail analysis:
+
+1. **Ensure audit logs are enabled:**
+   ```bash
+   # Check current audit configuration
+   gcloud logging sinks list
+   
+   # Verify admin activity logs are enabled (should be by default)
+   gcloud projects get-iam-policy PROJECT_ID --format="json" | grep auditConfigs
+   ```
+
+2. **Recommended log retention:**
+   - Set appropriate log retention periods for compliance requirements
+   - Consider using log exports to BigQuery for long-term analysis
 
 ## 📖 Usage Guide
 
@@ -241,6 +281,34 @@ The Enhanced Version (`app_enhanced.py`) includes advanced AI-powered analytics:
 - **Impact Assessment**: Explains the potential impact of each issue
 - **Priority Ordering**: Recommendations sorted by business impact
 
+## 🚀 Advanced Dashboard Features (NEW!)
+
+The Advanced Dashboard (`app_advanced.py`) is the most comprehensive version, featuring ALL advanced capabilities:
+
+### 🔍 Enhanced Identity Analysis
+- **Group Membership Resolution**: Uses Cloud Identity API to resolve user group memberships
+- **Activity Pattern Analysis**: Tracks user behavior through audit logs
+- **Risk Assessment**: Comprehensive risk scoring for identities
+- **Batch Analysis**: Analyze multiple identities simultaneously
+
+### 👑 Advanced Role Management
+- **Role Comparison Tool**: Compare permissions between roles with similarity scoring
+- **Custom Role Builder**: Interactive tool to create custom roles with validation
+- **Role Templates**: Pre-built templates for common use cases (Developer, DevOps, Security, etc.)
+- **Usage Analysis**: Analyze how roles are used across your organization
+
+### 🔐 Permission Deep Dive
+- **Risk Scoring**: Advanced permission risk assessment with 0-100 scoring
+- **Security Analysis**: Identify high-risk permissions and security implications
+- **Compliance Mapping**: Map permissions to compliance frameworks (SOX, PCI-DSS, HIPAA, GDPR)
+- **Mitigation Strategies**: Specific recommendations for reducing permission risks
+
+### 📋 Audit Trail Integration
+- **Historical IAM Changes**: Track all IAM policy changes over time
+- **Security Incident Detection**: Automated detection of suspicious patterns
+- **User Access Patterns**: Analyze user behavior and detect anomalies
+- **Compliance Reports**: Generate detailed compliance audit reports
+
 ## 🎯 Consolidation Dashboard Features
 
 The Consolidation Dashboard (`app_consolidation.py`) is specifically designed to reduce IAM complexity:
@@ -290,6 +358,7 @@ GCP-IAM-Janitor/
 ├── app_simple.py          # Simple version - Basic IAM analysis
 ├── app_enhanced.py        # Enhanced version - AI insights & analytics
 ├── app_consolidation.py   # Consolidation dashboard - IAM policy reduction
+├── app_advanced.py        # NEW: Advanced version - ALL features integrated
 ├── run.sh                 # Startup script for all versions
 ├── src/
 │   ├── analytics/        # AI insights and analytics
@@ -302,7 +371,11 @@ GCP-IAM-Janitor/
 │   │   ├── __init__.py
 │   │   ├── iam_client.py
 │   │   ├── org_client.py
-│   │   └── project_client.py
+│   │   ├── project_client.py
+│   │   ├── identity_client.py      # NEW: Enhanced identity analysis
+│   │   ├── role_management_client.py # NEW: Advanced role management
+│   │   ├── permission_analyzer.py  # NEW: Permission deep dive
+│   │   └── audit_analyzer.py      # NEW: Audit trail integration
 │   ├── models/           # Data models
 │   │   ├── __init__.py
 │   │   └── iam_models.py
@@ -311,10 +384,7 @@ GCP-IAM-Janitor/
 │   │   └── cache.py
 │   └── pages/            # Streamlit pages (modular version)
 │       ├── __init__.py
-│       ├── overview.py
-│       ├── users.py      # (Planned)
-│       ├── roles.py      # (Planned) 
-│       └── permissions.py # (Planned)
+│       └── overview.py
 ├── test_auth.py          # Authentication test script
 ├── debug_projects.py     # Project debugging script
 ├── pyproject.toml        # Python dependencies
@@ -333,6 +403,11 @@ GCP-IAM-Janitor/
   - Role optimization suggestions
   - Duplicate permission detection
   - Organization-level opportunities
+- **Advanced Analysis Modules** (NEW in Advanced version):
+  - **Identity Analysis Client**: Group membership resolution and user activity tracking
+  - **Role Management Client**: Custom role builder, comparison tools, and templates
+  - **Permission Analyzer**: Deep permission risk scoring and security analysis
+  - **Audit Analyzer**: Historical analysis and security incident detection
 - **Consolidation Engine**: IAM policy reduction through intelligent grouping (Consolidation version)
   - Role-based, similarity-based, project-based, and domain-based grouping
   - Network graph analysis and visualization
@@ -397,11 +472,14 @@ View logs in the terminal where you ran the application.
 - **Plotly Visualization Updates** - Modern chart library compatibility
 - **Advanced Grouping Algorithms** - Multiple grouping strategies implementation
 
+### ✅ Recently Completed (v2.0.0) - NEW ADVANCED FEATURES!
+- **Enhanced Identity Analysis** - Group membership resolution, user activity tracking
+- **Advanced Role Management** - Custom role builder, role comparison tools  
+- **Permission Deep Dive** - Detailed permission analysis, risk scoring
+- **Audit Trail Integration** - Historical analysis with Cloud Audit Logs
+- **New Advanced Dashboard** - Complete integration of all advanced features
+
 ### 🔮 Planned Features
-- [ ] **Enhanced Identity Analysis** - Group membership resolution, user activity tracking
-- [ ] **Advanced Role Management** - Custom role builder, role comparison tools
-- [ ] **Permission Deep Dive** - Detailed permission analysis, risk scoring
-- [ ] **Audit Trail Integration** - Historical analysis with Cloud Audit Logs
 - [ ] **Compliance Reporting** - Pre-built templates for common compliance frameworks
 - [ ] **API Access** - REST API for programmatic access
 - [ ] **Multi-Cloud Support** - AWS IAM and Azure AD integration
@@ -409,6 +487,6 @@ View logs in the terminal where you ran the application.
 
 ---
 
-**Version:** 1.2.0  
+**Version:** 2.0.0  
 **Last Updated:** October 14, 2025  
-**Status:** ✅ Fully Functional - All dashboard variants operational
+**Status:** ✅ Fully Functional - All dashboard variants operational including NEW Advanced Dashboard with comprehensive security features
