@@ -48,7 +48,8 @@ A comprehensive web application for inventorying, analyzing, and managing Google
 
 1. **Clone the repository:**
    ```bash
-   cd /home/master/workspace/GCP-IAM-Janitor
+   git clone https://github.com/erasmus74/GCP-IAM-Janitor.git
+   cd GCP-IAM-Janitor
    ```
 
 2. **Install dependencies using uv:**
