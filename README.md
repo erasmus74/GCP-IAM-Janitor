@@ -91,6 +91,23 @@ A comprehensive web application for inventorying, analyzing, and managing Google
 
 5. **Open your browser** to `http://localhost:8502`
 
+## 📸 Screenshots
+
+### 📊 Simple Dashboard
+*Basic IAM analysis with essential metrics and visualizations*
+
+![Simple Dashboard](run-simple.png)
+
+### 🧠 Enhanced Dashboard
+*AI-powered insights with advanced analytics and recommendations*
+
+![Enhanced Dashboard](run-enhanced.png)
+
+### 🎯 Consolidation Dashboard  
+*Specialized IAM policy reduction through intelligent user grouping*
+
+![Consolidation Dashboard](run-consolidation.png)
+
 ## 🔑 Authentication Setup
 
 ### Application Default Credentials (Recommended)
