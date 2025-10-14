@@ -1,0 +1,48 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Test artifacts
+test_*.py
+debug_*.py
+hello.py
+check_*.py
+
+# Documentation artifacts
+*_SUMMARY.md
+*_FIX_SUMMARY.md
+*_SOLUTION.md
+*_IMPROVEMENTS.md
+plotly_fix_summary.md
+readme_update_summary.md
+
+# Cache and logs
+*.log
+.cache/
+
+# Environment variables
+.env
+.env.local
