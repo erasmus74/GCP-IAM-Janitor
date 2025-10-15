@@ -110,6 +110,7 @@ jobs:
         push: false
     
     - name: Build and push Docker image
+      id: build
       if: github.event_name != 'pull_request' && (github.event.inputs.push_images != 'false')
       uses: docker/build-push-action@v5
       with:
