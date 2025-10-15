@@ -140,6 +140,32 @@ For a quick containerized deployment using Docker Compose:
 ./scripts/deploy.sh clean
 ```
 
+### Registry Deployment (Recommended)
+
+Use pre-built images from GitHub Container Registry for faster deployment:
+
+```bash
+# Run from registry (no local build required)
+./scripts/deploy-registry.sh run consolidation
+
+# Or other versions
+./scripts/deploy-registry.sh run simple
+./scripts/deploy-registry.sh run enhanced
+./scripts/deploy-registry.sh run advanced
+
+# Pull all images
+./scripts/deploy-registry.sh pull all
+
+# Direct container run
+./scripts/deploy-registry.sh direct consolidation
+```
+
+**Registry Images:**
+- `ghcr.io/erasmus74/gcp-iam-janitor:main-simple`
+- `ghcr.io/erasmus74/gcp-iam-janitor:main-enhanced`
+- `ghcr.io/erasmus74/gcp-iam-janitor:main-consolidation`
+- `ghcr.io/erasmus74/gcp-iam-janitor:main-advanced`
+
 ### Manual Docker Build
 
 ```bash
