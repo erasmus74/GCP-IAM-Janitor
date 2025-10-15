@@ -95,14 +95,10 @@ run_registry() {
     # Pull latest image first
     pull_images "$app_version"
     
-    local compose_args=""
+    # Set APP_VERSION environment variable and run compose
+    export APP_VERSION="$app_version"
     
-    # Select profile based on app version
-    if [ "$app_version" != "advanced" ]; then
-        compose_args="--profile $app_version"
-    fi
-    
-    docker compose -f docker-compose.registry.yml $compose_args up -d
+    docker compose -f docker-compose.registry.yml up -d
     
     print_success "Container started successfully!"
     print_status "Access the application at: http://localhost:$DEFAULT_PORT"
@@ -145,7 +141,19 @@ run_direct_registry() {
 # Function to stop containers
 stop_containers() {
     print_status "Stopping all GCP IAM Janitor containers..."
-    docker compose -f docker-compose.registry.yml down
+    
+    # Stop compose-managed containers
+    docker compose -f docker-compose.registry.yml down 2>/dev/null
+    
+    # Stop any directly-run containers with our naming pattern
+    local containers=$(docker ps --filter "name=gcp-iam-janitor" --format "{{.Names}}")
+    
+    if [ -n "$containers" ]; then
+        print_status "Stopping direct containers: $containers"
+        echo "$containers" | xargs -r docker stop
+        echo "$containers" | xargs -r docker rm
+    fi
+    
     print_success "All containers stopped."
 }
 
