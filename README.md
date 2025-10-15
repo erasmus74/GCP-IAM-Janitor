@@ -10,15 +10,19 @@ A comprehensive web application for inventorying, analyzing, and managing Google
 - **📉 IAM Policy Reduction**: Intelligent analysis to reduce policy count through smart user grouping
 - **🔍 Grouping Opportunities**: Identifies users with similar permissions for group consolidation
 - **🌐 Interactive Network Graphs**: Visual representation of user-group relationships
-- **📋 Implementation Roadmaps**: Phased approach with specific gcloud commands
+- **📋 Implementation Roadmaps**: Phased approach with comprehensive gcloud commands
 - **📈 Impact Analysis**: Quantifies policies saved and consolidation value
+- **🏆 Compliance Reporting**: Integrated compliance analysis with 8 major frameworks
+- **🤖 Automated Group Creation**: Complete gcloud automation for group management
+- **📥 Export Capabilities**: Download scripts, reports, and compliance documentation
 - **🎨 Advanced Visualizations**: Heatmaps, matrices, and priority-based recommendations
 
 ### Core Features (All Versions)
 - **🔍 Complete IAM Inventory**: Analyze identities, roles, and permissions across all your GCP resources
-- **📊 Interactive Visualizations**: Charts, graphs, and network diagrams showing IAM relationships  
-- **🛡️ Security Analysis**: Identify overprivileged users, external accounts, and security risks
+- **📉 Interactive Visualizations**: Charts, graphs, and network diagrams showing IAM relationships  
+- **🚪 Security Analysis**: Identify overprivileged users, external accounts, and security risks
 - **📋 Comprehensive Reporting**: Export data and generate compliance reports
+- **🏆 Compliance Analysis**: Built-in templates for HITRUST, HIPAA, SOC2, SOC3, ISO27001, NIST, PCI DSS, FedRAMP
 - **🔄 Multi-Project Analysis**: Support for analyzing multiple GCP projects with enhanced selection tools
 - **⚡ Cached Performance**: Intelligent caching for faster data retrieval
 - **🎨 Modern UI**: Clean, responsive interface built with Streamlit
@@ -309,6 +313,48 @@ The Advanced Dashboard (`app_advanced.py`) is the most comprehensive version, fe
 - **User Access Patterns**: Analyze user behavior and detect anomalies
 - **Compliance Reports**: Generate detailed compliance audit reports
 
+## 🏆 Compliance Reporting Features (NEW!)
+
+Comprehensive compliance analysis with pre-built templates for major frameworks:
+
+### Supported Frameworks
+- **🏥 HITRUST CSF** - Healthcare industry security framework with 6 key IAM controls
+- **🧠 HIPAA Security Rule** - Healthcare privacy requirements with 7 IAM-specific controls
+- **🔒 SOC 2 Type II** - Trust services criteria for security and availability (5 controls)
+- **📄 SOC 3** - Simplified SOC 2 reporting (2 main control areas)
+- **🌍 ISO 27001** - International information security standard (3 key controls)
+- **🏢 NIST Cybersecurity Framework** - US federal cybersecurity guidelines (3 controls)
+- **💳 PCI DSS** - Payment card industry security standards (3 controls)
+- **🏛️ FedRAMP** - Federal cloud security requirements (3 controls)
+
+### Compliance Analysis Engine
+1. **Control Evaluation**
+   - Maps IAM configurations to specific compliance requirements
+   - Automated assessment of 30+ compliance controls
+   - Risk-based severity classification (Critical/High/Medium/Low)
+
+2. **Cross-Framework Analysis**
+   - Identifies issues affecting multiple compliance standards
+   - Consolidated recommendations across frameworks
+   - Priority-based remediation guidance
+
+3. **Compliance Scoring**
+   - Overall compliance percentage across all frameworks
+   - Individual framework scoring and status
+   - Detailed findings with actionable recommendations
+
+### Export & Reporting
+- **📥 JSON Reports** - Complete machine-readable compliance data
+- **📈 CSV Summaries** - Framework scores for spreadsheet analysis
+- **📋 Markdown Reports** - Human-readable compliance documentation
+- **🔍 Audit Trail** - Detailed findings with control mappings
+
+### Integration
+- **Dashboard Tab** - Dedicated compliance analysis interface
+- **Framework Selection** - Choose specific standards to analyze
+- **Real-time Analysis** - Immediate compliance assessment
+- **Export Downloads** - One-click report generation
+
 ## 🎯 Consolidation Dashboard Features
 
 The Consolidation Dashboard (`app_consolidation.py`) is specifically designed to reduce IAM complexity:
@@ -344,10 +390,14 @@ The Consolidation Dashboard (`app_consolidation.py`) is specifically designed to
 
 ### Implementation Support
 
-- **Automated Commands**: Pre-generated gcloud commands for group creation
-- **Phased Rollouts**: Step-by-step implementation plans
-- **Impact Calculations**: Quantified benefits (policies saved, complexity reduction)
-- **Risk Assessment**: Safety analysis for proposed changes
+- **🤖 Fully Automated gCloud Commands**: Complete 280+ line bash scripts per consolidation
+- **🌐 Intelligent Domain Detection**: Automatically detects user domains (e.g., sequel.ae)
+- **📝 Comprehensive Scripts**: Group creation, member addition, role assignment, verification
+- **⚙️ Pre-flight Checks**: API enablement verification and permission validation
+- **🔒 Safety Features**: Error handling, rollback instructions, and verification steps
+- **📥 Download Options**: Individual scripts or master consolidation script
+- **📈 Impact Calculations**: Quantified benefits (policies saved, complexity reduction)
+- **🚪 Risk Assessment**: Safety analysis for proposed changes
 
 ## 🏗️ Architecture
 
@@ -479,11 +529,18 @@ View logs in the terminal where you ran the application.
 - **Audit Trail Integration** - Historical analysis with Cloud Audit Logs
 - **New Advanced Dashboard** - Complete integration of all advanced features
 
+### ✅ Recently Completed (v2.1.0) - COMPLIANCE REPORTING & ENHANCED AUTOMATION!
+- **🏆 Compliance Reporting** - Pre-built templates for 8 major frameworks (HITRUST, HIPAA, SOC2, SOC3, ISO27001, NIST, PCI DSS, FedRAMP)
+- **🤖 Automated Group Creation** - Full integration with Google Cloud Identity API for automated group management
+- **📥 Enhanced Export Capabilities** - JSON, CSV, and Markdown compliance reports
+- **🔍 Inactive Identity Detection** - Advanced analysis for 30/90 day inactive users and never-used accounts
+- **🌐 Organization-Level Recommendations** - Intelligent suggestions for org-level role assignments
+
 ### 🔮 Planned Features
-- [ ] **Compliance Reporting** - Pre-built templates for common compliance frameworks
 - [ ] **API Access** - REST API for programmatic access
 - [ ] **Multi-Cloud Support** - AWS IAM and Azure AD integration
-- [ ] **Automated Group Creation** - Direct integration with Google Cloud Identity API
+- [ ] **Real-time Monitoring** - Continuous IAM monitoring with alerts
+- [ ] **Advanced Workflows** - Multi-step approval processes for IAM changes
 
 ---
 
