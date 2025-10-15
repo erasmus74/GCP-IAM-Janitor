@@ -33,6 +33,15 @@ from ..utils.cache import (
     generate_recommendations
 )
 
+# CloudFast imports
+try:
+    from ..gcp.cloudfast_analyzer import CloudFastPattern
+    from ..analytics.insights import IAMInsights
+    CLOUDFAST_AVAILABLE = True
+except ImportError:
+    logger.warning("CloudFast features not available")
+    CLOUDFAST_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -191,6 +200,118 @@ def load_iam_data(filters: Dict[str, Any]) -> Dict[str, Any]:
             pass
         st.error(f"Error loading data: {str(e)}")
         return data
+
+
+def create_cloudfast_overview(data: Dict[str, Any]) -> None:
+    """
+    Create CloudFast organizational pattern overview section.
+    """
+    if not CLOUDFAST_AVAILABLE:
+        return
+    
+    try:
+        credentials, _ = get_session_credentials()
+        if not credentials:
+            return
+        
+        # Check if we have organization data
+        orgs = data.get('organizations', [])
+        if not orgs:
+            return
+        
+        org_client = OrganizationClient(credentials)
+        
+        st.subheader("🌐 CloudFast Organization Analysis")
+        
+        # Analyze the first organization (or let user select if multiple)
+        org_to_analyze = orgs[0]['organization_id'] if orgs else None
+        
+        if len(orgs) > 1:
+            org_options = {org['display_name']: org['organization_id'] for org in orgs}
+            selected_org_name = st.selectbox(
+                "Select organization for CloudFast analysis:",
+                list(org_options.keys())
+            )
+            org_to_analyze = org_options[selected_org_name]
+        
+        if org_to_analyze:
+            # Get CloudFast analysis
+            with st.spinner("Analyzing CloudFast patterns..."):
+                cloudfast_analysis = org_client.analyze_cloudfast_patterns(org_to_analyze)
+            
+            if cloudfast_analysis.confidence_score > 0:
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    pattern_emoji = {
+                        'squad_based': '👥',
+                        'environment_first': '🌍', 
+                        'business_unit': '🏢',
+                        'hybrid': '🔀',
+                        'unknown': '❓'
+                    }
+                    st.metric(
+                        label="Organization Pattern",
+                        value=f"{pattern_emoji.get(cloudfast_analysis.pattern_type.value, '❓')} {cloudfast_analysis.pattern_type.value.replace('_', ' ').title()}",
+                        help=f"Confidence: {cloudfast_analysis.confidence_score:.1%}"
+                    )
+                
+                with col2:
+                    st.metric(
+                        label="Squads Detected",
+                        value=len(cloudfast_analysis.squads),
+                        help="Number of squad-based organizational units"
+                    )
+                
+                with col3:
+                    st.metric(
+                        label="Environment Types",
+                        value=len(cloudfast_analysis.environments),
+                        help=f"Environments: {', '.join(cloudfast_analysis.environments)}"
+                    )
+                
+                with col4:
+                    confidence_color = "green" if cloudfast_analysis.confidence_score > 0.7 else "orange" if cloudfast_analysis.confidence_score > 0.4 else "red"
+                    st.metric(
+                        label="Pattern Confidence",
+                        value=f"{cloudfast_analysis.confidence_score:.1%}",
+                        delta=None,
+                        help="How confident the analysis is about the detected pattern"
+                    )
+                    st.markdown(f"<style>.metric-container {{border-left: 4px solid {confidence_color};}}</style>", unsafe_allow_html=True)
+                
+                # CloudFast recommendations
+                if cloudfast_analysis.recommendations:
+                    st.subheader("💡 CloudFast Recommendations")
+                    for rec in cloudfast_analysis.recommendations[:5]:  # Show top 5
+                        if rec.startswith('✅'):
+                            st.success(rec)
+                        elif rec.startswith('⚠️') or rec.startswith('❓'):
+                            st.warning(rec)
+                        else:
+                            st.info(rec)
+                
+                # Squad details if available
+                if cloudfast_analysis.squads:
+                    st.subheader("👥 Squad Overview")
+                    squad_data = []
+                    for squad in cloudfast_analysis.squads:
+                        squad_data.append({
+                            'Squad': squad.name,
+                            'Environments': len(squad.environments),
+                            'Environment Types': ', '.join(set(env.environment_type for env in squad.environments)),
+                            'Total Projects': squad.total_projects
+                        })
+                    
+                    if squad_data:
+                        df = pd.DataFrame(squad_data)
+                        st.dataframe(df, use_container_width=True)
+            else:
+                st.info("No clear CloudFast patterns detected in this organization.")
+                
+    except Exception as e:
+        logger.warning(f"CloudFast analysis failed: {e}")
+        # Don't show error to user - just skip the CloudFast section
 
 
 def create_overview_metrics(data: Dict[str, Any]) -> None:
@@ -467,6 +588,9 @@ def render_overview_page(filters: Dict[str, Any]) -> None:
     if not data or not data.get('policies'):
         st.warning("No IAM data available. Please select resources in the sidebar and ensure you have appropriate permissions.")
         return
+    
+    # CloudFast analysis (if organization data available)
+    create_cloudfast_overview(data)
     
     # Overview metrics
     create_overview_metrics(data)

@@ -6,6 +6,13 @@ A comprehensive web application for inventorying, analyzing, and managing Google
 
 ## ✨ Features
 
+### 🌐 CloudFast & Cloud Foundation Fabric Optimized
+- **🏗️ CloudFast Architecture Support**: Designed specifically for Google Cloud Foundation Fabric patterns
+- **📁 Squad-Based Folder Organization**: Handles environments split by squad/team rather than business unit
+- **🔄 Flexible Hierarchy Analysis**: Adapts to custom organizational structures and naming conventions
+- **⚡ Fabric-Aware IAM Patterns**: Recognizes and optimizes CloudFast IAM inheritance patterns
+- **🎯 Environment-Specific Insights**: Tailored analysis for dev/staging/prod environments per squad
+
 ### 🎯 Consolidation Dashboard (NEW)
 - **📉 IAM Policy Reduction**: Intelligent analysis to reduce policy count through smart user grouping
 - **🔍 Grouping Opportunities**: Identifies users with similar permissions for group consolidation
@@ -189,6 +196,17 @@ For comprehensive audit trail analysis:
    - Consider using log exports to BigQuery for long-term analysis
 
 ## 📖 Usage Guide
+
+### 🌐 CloudFast & Cloud Foundation Fabric Organizations
+
+This tool is optimized for organizations following Google's Cloud Foundation Fabric patterns, including:
+
+- **Squad-Based Structure**: Environments organized by squad/team rather than traditional business units
+- **CloudFast Hierarchies**: Automatic recognition of CloudFast folder and project naming conventions  
+- **Environment Patterns**: Intelligent handling of dev/staging/prod environments per squad
+- **Fabric IAM Inheritance**: Optimized analysis of IAM policies following Cloud Foundation Fabric best practices
+
+The tool automatically adapts to your organizational structure - simply connect to your GCP organization and it will analyze your specific hierarchy pattern.
 
 ### Navigation
 

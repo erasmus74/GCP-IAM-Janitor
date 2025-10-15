@@ -16,6 +16,7 @@ from google.api_core.exceptions import (
 )
 
 from ..models.iam_models import ResourceIAMPolicy, ResourceType
+from .cloudfast_analyzer import CloudFastAnalyzer, CloudFastAnalysis, CloudFastPattern
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class OrganizationClient:
         self.credentials = credentials
         self._organizations_client = None
         self._folders_client = None
+        self.cloudfast_analyzer = CloudFastAnalyzer()
     
     @property
     def organizations_client(self) -> resourcemanager_v1.OrganizationsClient:
@@ -477,3 +479,165 @@ class OrganizationClient:
         except Exception as e:
             logger.error(f"Error fetching organizational resources: {e}")
             return {'organizations': [], 'folders': []}
+    
+    def analyze_cloudfast_patterns(self, organization_id: str) -> CloudFastAnalysis:
+        """
+        Analyze organization for CloudFast and Cloud Foundation Fabric patterns.
+        
+        Args:
+            organization_id: The organization ID to analyze
+            
+        Returns:
+            CloudFastAnalysis: Detailed analysis of CloudFast patterns
+        """
+        try:
+            logger.info(f"Analyzing CloudFast patterns for organization: {organization_id}")
+            
+            # Get organization hierarchy
+            hierarchy = self.get_organization_hierarchy(organization_id)
+            
+            if not hierarchy:
+                logger.warning(f"No hierarchy data available for organization: {organization_id}")
+                return self.cloudfast_analyzer._create_empty_analysis()
+            
+            # Perform CloudFast analysis
+            analysis = self.cloudfast_analyzer.analyze_organization(hierarchy)
+            
+            logger.info(f"CloudFast analysis complete - Pattern: {analysis.pattern_type.value}, "
+                       f"Confidence: {analysis.confidence_score:.2f}, Squads: {len(analysis.squads)}")
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error analyzing CloudFast patterns: {e}")
+            return self.cloudfast_analyzer._create_empty_analysis()
+    
+    def get_enhanced_hierarchy(self, organization_id: str) -> Dict[str, Any]:
+        """
+        Get organization hierarchy enhanced with CloudFast analysis.
+        
+        Args:
+            organization_id: The organization ID
+            
+        Returns:
+            Dict[str, Any]: Enhanced hierarchy with CloudFast insights
+        """
+        try:
+            logger.info(f"Building enhanced hierarchy with CloudFast analysis for: {organization_id}")
+            
+            # Get base hierarchy
+            hierarchy = self.get_organization_hierarchy(organization_id)
+            
+            if not hierarchy:
+                return {}
+            
+            # Add CloudFast analysis
+            cloudfast_analysis = self.cloudfast_analyzer.analyze_organization(hierarchy)
+            
+            # Create enhanced hierarchy
+            enhanced_hierarchy = {
+                **hierarchy,
+                'cloudfast_analysis': {
+                    'pattern_type': cloudfast_analysis.pattern_type.value,
+                    'confidence_score': cloudfast_analysis.confidence_score,
+                    'squads': [{
+                        'name': squad.name,
+                        'folder_id': squad.folder_id,
+                        'environments': [{
+                            'name': env.name,
+                            'type': env.environment_type,
+                            'folder_id': env.folder_id
+                        } for env in squad.environments],
+                        'total_projects': squad.total_projects
+                    } for squad in cloudfast_analysis.squads],
+                    'environments': cloudfast_analysis.environments,
+                    'recommendations': cloudfast_analysis.recommendations,
+                    'iam_inheritance': cloudfast_analysis.iam_inheritance_analysis
+                }
+            }
+            
+            return enhanced_hierarchy
+            
+        except Exception as e:
+            logger.error(f"Error building enhanced hierarchy: {e}")
+            return self.get_organization_hierarchy(organization_id)
+    
+    def get_squad_recommendations(self, organization_id: str) -> Dict[str, Any]:
+        """
+        Get CloudFast-specific recommendations for squad-based IAM optimization.
+        
+        Args:
+            organization_id: The organization ID
+            
+        Returns:
+            Dict[str, Any]: Squad-specific recommendations
+        """
+        try:
+            analysis = self.analyze_cloudfast_patterns(organization_id)
+            
+            recommendations = {
+                'pattern_detected': analysis.pattern_type.value,
+                'confidence': analysis.confidence_score,
+                'squad_count': len(analysis.squads),
+                'environment_count': len(analysis.environments),
+                'recommendations': analysis.recommendations,
+                'squad_details': [],
+                'optimization_opportunities': []
+            }
+            
+            # Add detailed squad information
+            for squad in analysis.squads:
+                squad_detail = {
+                    'name': squad.name,
+                    'environments': len(squad.environments),
+                    'environment_types': list(set(env.environment_type for env in squad.environments)),
+                    'folder_id': squad.folder_id,
+                    'optimization_priority': self._calculate_squad_priority(squad)
+                }
+                recommendations['squad_details'].append(squad_detail)
+            
+            # Generate optimization opportunities
+            if analysis.pattern_type == CloudFastPattern.SQUAD_BASED:
+                recommendations['optimization_opportunities'].extend([
+                    f"Implement group-based access control for {len(analysis.squads)} squads",
+                    "Standardize IAM policies across squad environments",
+                    "Consider cross-squad role consolidation opportunities"
+                ])
+            elif analysis.pattern_type == CloudFastPattern.ENVIRONMENT_FIRST:
+                recommendations['optimization_opportunities'].extend([
+                    "Restructure to squad-based organization for better team autonomy",
+                    "Implement environment-specific access controls",
+                    "Consider migrating to CloudFast squad-based model"
+                ])
+            
+            return recommendations
+            
+        except Exception as e:
+            logger.error(f"Error generating squad recommendations: {e}")
+            return {
+                'pattern_detected': 'unknown',
+                'confidence': 0.0,
+                'squad_count': 0,
+                'recommendations': ['Error analyzing organization structure'],
+                'optimization_opportunities': []
+            }
+    
+    def _calculate_squad_priority(self, squad: SquadInfo) -> str:
+        """
+        Calculate optimization priority for a squad.
+        
+        Args:
+            squad: Squad information
+            
+        Returns:
+            str: Priority level (high, medium, low)
+        """
+        env_count = len(squad.environments)
+        has_prod = any(env.environment_type == 'production' for env in squad.environments)
+        
+        if env_count >= 3 and has_prod:
+            return 'high'
+        elif env_count >= 2:
+            return 'medium'
+        else:
+            return 'low'

@@ -11,6 +11,13 @@ from collections import defaultdict, Counter
 from datetime import datetime, timedelta
 import pandas as pd
 
+# CloudFast imports
+try:
+    from ..gcp.cloudfast_analyzer import CloudFastAnalyzer, CloudFastAnalysis, CloudFastPattern
+except ImportError:
+    logger.warning("CloudFast analyzer not available - some features may be limited")
+    CloudFastAnalyzer = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,6 +27,7 @@ class IAMInsights:
     def __init__(self):
         self.insights = []
         self.recommendations = []
+        self.cloudfast_analyzer = CloudFastAnalyzer() if CloudFastAnalyzer else None
         
     def analyze_project_data(self, projects_data: Dict[str, Dict]) -> Dict[str, Any]:
         """
@@ -1571,3 +1579,363 @@ class IAMInsights:
             })
         
         return recommendations
+    
+    def analyze_with_cloudfast(self, projects_data: Dict[str, Dict], 
+                              organization_hierarchy: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Enhanced analysis incorporating CloudFast organizational patterns.
+        
+        Args:
+            projects_data: Dict mapping project_id to IAM policy data
+            organization_hierarchy: Optional organization hierarchy data
+            
+        Returns:
+            Dict containing enhanced analysis with CloudFast insights
+        """
+        logger.info("Performing CloudFast-enhanced IAM analysis")
+        
+        # Perform base analysis
+        base_analysis = self.analyze_project_data(projects_data)
+        
+        # Add CloudFast analysis if available
+        cloudfast_insights = {}
+        if self.cloudfast_analyzer and organization_hierarchy:
+            cloudfast_insights = self._analyze_cloudfast_patterns(organization_hierarchy, projects_data)
+        
+        # Enhance recommendations with CloudFast context
+        enhanced_recommendations = self._enhance_recommendations_with_cloudfast(
+            base_analysis['recommendations'], cloudfast_insights
+        )
+        
+        return {
+            **base_analysis,
+            'cloudfast_analysis': cloudfast_insights,
+            'recommendations': enhanced_recommendations,
+            'squad_based_insights': self._generate_squad_insights(cloudfast_insights, projects_data)
+        }
+    
+    def _analyze_cloudfast_patterns(self, hierarchy: Dict[str, Any], 
+                                   projects_data: Dict[str, Dict]) -> Dict[str, Any]:
+        """
+        Analyze CloudFast patterns and their IAM implications.
+        
+        Args:
+            hierarchy: Organization hierarchy
+            projects_data: Project IAM data
+            
+        Returns:
+            Dict containing CloudFast analysis results
+        """
+        if not self.cloudfast_analyzer:
+            return {}
+        
+        try:
+            # Perform CloudFast analysis
+            cloudfast_analysis = self.cloudfast_analyzer.analyze_organization(hierarchy)
+            
+            # Map projects to squads/environments
+            project_squad_mapping = self._map_projects_to_squads(projects_data, cloudfast_analysis)
+            
+            # Analyze IAM patterns within CloudFast structure
+            squad_iam_analysis = self._analyze_squad_iam_patterns(project_squad_mapping, projects_data)
+            
+            return {
+                'pattern_type': cloudfast_analysis.pattern_type.value,
+                'confidence_score': cloudfast_analysis.confidence_score,
+                'squad_count': len(cloudfast_analysis.squads),
+                'environment_types': cloudfast_analysis.environments,
+                'squads': [{
+                    'name': squad.name,
+                    'environments': len(squad.environments),
+                    'folder_id': squad.folder_id,
+                    'environment_types': [env.environment_type for env in squad.environments]
+                } for squad in cloudfast_analysis.squads],
+                'project_squad_mapping': project_squad_mapping,
+                'squad_iam_analysis': squad_iam_analysis,
+                'cloudfast_recommendations': cloudfast_analysis.recommendations
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in CloudFast analysis: {e}")
+            return {}
+    
+    def _map_projects_to_squads(self, projects_data: Dict[str, Dict], 
+                               cloudfast_analysis) -> Dict[str, Dict[str, str]]:
+        """
+        Map projects to their squad and environment context.
+        
+        Args:
+            projects_data: Project IAM data
+            cloudfast_analysis: CloudFast analysis results
+            
+        Returns:
+            Dict mapping project_id to squad/environment info
+        """
+        project_mapping = {}
+        
+        # For now, use heuristics to map projects to squads
+        # In a real implementation, this would use the folder hierarchy
+        for project_id in projects_data.keys():
+            # Extract squad/environment from project naming patterns
+            squad_info = self._extract_squad_from_project_name(project_id, cloudfast_analysis)
+            project_mapping[project_id] = squad_info
+        
+        return project_mapping
+    
+    def _extract_squad_from_project_name(self, project_id: str, cloudfast_analysis) -> Dict[str, str]:
+        """
+        Extract squad and environment information from project name.
+        
+        Args:
+            project_id: Project identifier
+            cloudfast_analysis: CloudFast analysis results
+            
+        Returns:
+            Dict with squad and environment information
+        """
+        # Common CloudFast project naming patterns:
+        # squad-env-purpose, env-squad-purpose, squad-purpose-env
+        project_lower = project_id.lower().replace('_', '-')
+        parts = project_lower.split('-')
+        
+        # Look for environment patterns
+        env_patterns = ['dev', 'test', 'stage', 'staging', 'prod', 'production', 'sandbox']
+        detected_env = None
+        for part in parts:
+            if any(env in part for env in env_patterns):
+                detected_env = part
+                break
+        
+        # Look for squad patterns (assuming first non-env part is squad)
+        detected_squad = None
+        for part in parts:
+            if part != detected_env and len(part) > 2:  # Avoid short words like 'ui', 'api'
+                detected_squad = part
+                break
+        
+        return {
+            'squad': detected_squad or 'unknown',
+            'environment': detected_env or 'unknown',
+            'project_id': project_id
+        }
+    
+    def _analyze_squad_iam_patterns(self, project_mapping: Dict[str, Dict], 
+                                   projects_data: Dict[str, Dict]) -> Dict[str, Any]:
+        """
+        Analyze IAM patterns within squad structure.
+        
+        Args:
+            project_mapping: Project to squad mapping
+            projects_data: Project IAM data
+            
+        Returns:
+            Dict containing squad-based IAM analysis
+        """
+        squad_analysis = defaultdict(lambda: {
+            'projects': set(),
+            'environments': set(),
+            'users': set(),
+            'roles': set(),
+            'cross_env_users': set(),
+            'environment_specific_roles': defaultdict(set)
+        })
+        
+        # Analyze each project within squad context
+        for project_id, policy_data in projects_data.items():
+            if not policy_data or 'bindings' not in policy_data:
+                continue
+            
+            squad_info = project_mapping.get(project_id, {})
+            squad = squad_info.get('squad', 'unknown')
+            environment = squad_info.get('environment', 'unknown')
+            
+            squad_data = squad_analysis[squad]
+            squad_data['projects'].add(project_id)
+            squad_data['environments'].add(environment)
+            
+            # Track users and roles per squad
+            for binding in policy_data['bindings']:
+                role = binding['role']
+                members = binding.get('members', [])
+                
+                squad_data['roles'].add(role)
+                squad_data['environment_specific_roles'][environment].add(role)
+                
+                for member in members:
+                    if member.startswith('user:'):
+                        squad_data['users'].add(member)
+                        
+                        # Check if user has access to multiple environments in this squad
+                        user_envs = set()
+                        for other_proj, other_squad_info in project_mapping.items():
+                            if other_squad_info.get('squad') == squad:
+                                for other_binding in projects_data.get(other_proj, {}).get('bindings', []):
+                                    if member in other_binding.get('members', []):
+                                        user_envs.add(other_squad_info.get('environment'))
+                        
+                        if len(user_envs) > 1:
+                            squad_data['cross_env_users'].add(member)
+        
+        # Convert sets to lists for JSON serialization
+        result = {}
+        for squad, data in squad_analysis.items():
+            result[squad] = {
+                'projects': list(data['projects']),
+                'environments': list(data['environments']),
+                'user_count': len(data['users']),
+                'role_count': len(data['roles']),
+                'cross_environment_users': list(data['cross_env_users']),
+                'environment_role_distribution': {
+                    env: list(roles) for env, roles in data['environment_specific_roles'].items()
+                }
+            }
+        
+        return result
+    
+    def _enhance_recommendations_with_cloudfast(self, base_recommendations: List[Dict], 
+                                               cloudfast_insights: Dict) -> List[Dict]:
+        """
+        Enhance recommendations with CloudFast-specific insights.
+        
+        Args:
+            base_recommendations: Base IAM recommendations
+            cloudfast_insights: CloudFast analysis results
+            
+        Returns:
+            Enhanced recommendations list
+        """
+        enhanced_recommendations = base_recommendations.copy()
+        
+        if not cloudfast_insights:
+            return enhanced_recommendations
+        
+        # Add CloudFast-specific recommendations
+        pattern_type = cloudfast_insights.get('pattern_type', 'unknown')
+        squad_count = cloudfast_insights.get('squad_count', 0)
+        
+        if pattern_type == 'squad_based' and squad_count > 0:
+            enhanced_recommendations.insert(0, {
+                'priority': 'HIGH',
+                'category': 'CloudFast Optimization',
+                'title': f'Optimize IAM for {squad_count} squad-based structure',
+                'description': 'CloudFast squad-based organization detected - leverage for IAM optimization',
+                'action': 'Implement squad-level Google Groups and environment-specific role inheritance',
+                'impact': f'Streamlined IAM management across {squad_count} squads',
+                'cloudfast_specific': True
+            })
+        
+        # Add squad-specific recommendations
+        squad_iam_analysis = cloudfast_insights.get('squad_iam_analysis', {})
+        for squad, analysis in squad_iam_analysis.items():
+            if len(analysis.get('cross_environment_users', [])) > 2:
+                enhanced_recommendations.append({
+                    'priority': 'MEDIUM',
+                    'category': 'Squad Management',
+                    'title': f'Optimize cross-environment access for squad "{squad}"',
+                    'description': f'Squad has {len(analysis["cross_environment_users"])} users with multi-environment access',
+                    'action': f'Create squad-level groups with environment inheritance for {squad}',
+                    'impact': 'Improved squad autonomy and simplified access management',
+                    'cloudfast_specific': True,
+                    'squad': squad
+                })
+        
+        # Add CloudFast recommendations from analyzer
+        for cf_rec in cloudfast_insights.get('cloudfast_recommendations', []):
+            enhanced_recommendations.append({
+                'priority': 'MEDIUM',
+                'category': 'CloudFast Structure',
+                'title': cf_rec,
+                'description': 'CloudFast pattern analysis recommendation',
+                'action': 'Review and implement based on CloudFast best practices',
+                'impact': 'Improved organizational structure alignment',
+                'cloudfast_specific': True
+            })
+        
+        return enhanced_recommendations
+    
+    def _generate_squad_insights(self, cloudfast_insights: Dict, 
+                                projects_data: Dict[str, Dict]) -> Dict[str, Any]:
+        """
+        Generate squad-specific insights for CloudFast organizations.
+        
+        Args:
+            cloudfast_insights: CloudFast analysis results
+            projects_data: Project IAM data
+            
+        Returns:
+            Dict containing squad-specific insights
+        """
+        if not cloudfast_insights:
+            return {}
+        
+        squad_insights = {
+            'total_squads': cloudfast_insights.get('squad_count', 0),
+            'pattern_confidence': cloudfast_insights.get('confidence_score', 0),
+            'squad_summaries': [],
+            'optimization_opportunities': []
+        }
+        
+        squad_iam_analysis = cloudfast_insights.get('squad_iam_analysis', {})
+        
+        for squad, analysis in squad_iam_analysis.items():
+            squad_summary = {
+                'name': squad,
+                'project_count': len(analysis.get('projects', [])),
+                'environment_count': len(analysis.get('environments', [])),
+                'user_count': analysis.get('user_count', 0),
+                'role_count': analysis.get('role_count', 0),
+                'cross_env_user_count': len(analysis.get('cross_environment_users', [])),
+                'optimization_score': self._calculate_squad_optimization_score(analysis)
+            }
+            squad_insights['squad_summaries'].append(squad_summary)
+            
+            # Generate optimization opportunities
+            if squad_summary['cross_env_user_count'] > 1:
+                squad_insights['optimization_opportunities'].append({
+                    'squad': squad,
+                    'type': 'group_consolidation',
+                    'description': f'Create squad-level group for {squad_summary["cross_env_user_count"]} cross-environment users',
+                    'impact': 'high'
+                })
+            
+            if squad_summary['role_count'] > 10:
+                squad_insights['optimization_opportunities'].append({
+                    'squad': squad,
+                    'type': 'role_standardization',
+                    'description': f'Standardize {squad_summary["role_count"]} roles across squad environments',
+                    'impact': 'medium'
+                })
+        
+        return squad_insights
+    
+    def _calculate_squad_optimization_score(self, squad_analysis: Dict[str, Any]) -> float:
+        """
+        Calculate optimization score for a squad (0-1, higher is better optimized).
+        
+        Args:
+            squad_analysis: Squad IAM analysis data
+            
+        Returns:
+            Float optimization score
+        """
+        score = 1.0
+        
+        # Penalize excessive cross-environment users (suggests need for groups)
+        cross_env_users = len(squad_analysis.get('cross_environment_users', []))
+        total_users = squad_analysis.get('user_count', 1)
+        if cross_env_users / total_users > 0.5:
+            score -= 0.3
+        
+        # Penalize high role count (suggests need for standardization)
+        role_count = squad_analysis.get('role_count', 0)
+        if role_count > 15:
+            score -= 0.2
+        elif role_count > 10:
+            score -= 0.1
+        
+        # Reward consistent environment structure
+        environments = squad_analysis.get('environments', [])
+        if len(environments) >= 3:  # dev, staging, prod
+            score += 0.1
+        
+        return max(0.0, min(1.0, score))
