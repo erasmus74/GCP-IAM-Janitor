@@ -76,12 +76,13 @@ class IdentityAnalysisClient:
             self._logging_client = logging_v2.Client(credentials=self.credentials)
         return self._logging_client
     
-    def resolve_group_memberships(self, user_email: str) -> Dict[str, Any]:
+    def resolve_group_memberships(self, user_email: str, enable_api_calls: bool = False) -> Dict[str, Any]:
         """
         Resolve group memberships for a user.
         
         Args:
             user_email: User email address
+            enable_api_calls: Whether to make actual API calls (disabled by default due to common permission issues)
             
         Returns:
             Dict containing group membership information
@@ -93,6 +94,11 @@ class IdentityAnalysisClient:
             'group_hierarchy': {},
             'resolution_errors': []
         }
+        
+        # Skip API calls by default to avoid HTTP 400 errors
+        if not enable_api_calls:
+            memberships['resolution_errors'].append("Cloud Identity API calls disabled (use enable_api_calls=True to enable)")
+            return memberships
         
         if not self.cloud_identity_service:
             memberships['resolution_errors'].append("Cloud Identity API not available")
@@ -576,11 +582,11 @@ class IdentityAnalysisClient:
                 
                 # Only analyze user accounts for group memberships and activity
                 if identity_obj.identity_type == IdentityType.USER:
-                    # Resolve group memberships
-                    analysis_result['group_memberships'] = self.resolve_group_memberships(identity_email)
+                    # Resolve group memberships (API calls disabled by default)
+                    analysis_result['group_memberships'] = self.resolve_group_memberships(identity_email, enable_api_calls=False)
                     
-                    # Track user activity
-                    analysis_result['activity_tracking'] = self.track_user_activity(identity_email)
+                    # Track user activity (also disabled by default to avoid Cloud Logging API calls)
+                    analysis_result['activity_tracking'] = self._get_minimal_activity_data(identity_email)
                     
                     # Assess overall risk
                     analysis_result['risk_assessment'] = self._assess_identity_risk(
@@ -688,3 +694,25 @@ class IdentityAnalysisClient:
             recommendations.append("Implement additional monitoring for this identity")
         
         return recommendations
+    
+    def _get_minimal_activity_data(self, identity_email: str) -> Dict[str, Any]:
+        """
+        Get minimal activity data without making expensive API calls.
+        
+        Args:
+            identity_email: Identity email address
+            
+        Returns:
+            Dict containing minimal activity information
+        """
+        return {
+            'activity_score': 50,  # Default neutral score
+            'summary': {
+                'login_count': 0,
+                'iam_changes_count': 0,
+                'resource_access_count': 0
+            },
+            'login_events': [],
+            'risk_factors': [],
+            'note': 'Activity tracking disabled - enable Cloud Logging API calls for detailed analysis'
+        }

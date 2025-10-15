@@ -65,6 +65,8 @@ def init_session_state():
         st.session_state.iam_data_advanced = None
     if 'analysis_cache' not in st.session_state:
         st.session_state.analysis_cache = {}
+    if 'last_projects_key_advanced' not in st.session_state:
+        st.session_state.last_projects_key_advanced = None
 
 
 def authenticate():
@@ -116,6 +118,14 @@ def load_iam_data(selected_projects: List[str]):
     cached_data = get_cached_data(cache_key)
     
     if cached_data:
+        # Show a quick cache loading message with progress indication
+        progress_placeholder = st.empty()
+        progress_bar = st.progress(1.0)
+        progress_placeholder.success(f"✅ Loading cached data for {len(selected_projects)} projects...")
+        import time
+        time.sleep(0.5)  # Brief delay to show the message
+        progress_bar.empty()
+        progress_placeholder.empty()
         return cached_data
     
     try:
@@ -141,6 +151,12 @@ def load_iam_data(selected_projects: List[str]):
             return all_policies
             
     except Exception as e:
+        # Clean up any progress UI elements that might be hanging
+        try:
+            if 'progress_bar' in locals():
+                progress_bar.empty()
+        except:
+            pass
         st.error(f"Error loading IAM data: {str(e)}")
         return None
 
@@ -388,12 +404,21 @@ def render_identity_analysis_tab(iam_data, config):
     """Render the enhanced identity analysis tab."""
     st.header("🔍 Enhanced Identity Analysis")
     
-    if not iam_data or not config['enable_advanced_features']:
-        st.warning("Advanced features disabled or no data available.")
+    if not iam_data:
+        st.warning("No data available. Please select projects in the sidebar.")
+        return
+    
+    if not config['enable_advanced_features']:
+        st.info("ℹ️ Advanced features are disabled. Enable them in the sidebar to access identity analysis.")
+        return
+    
+    # Add a button to start the analysis to avoid automatic expensive calls
+    if not st.button("🚀 Start Identity Analysis", help="This may take some time and requires Cloud Identity API permissions"):
+        st.info("👆 Click the button above to start the identity analysis")
         return
     
     try:
-        # Initialize identity analysis client
+        # Initialize identity analysis client only when needed
         identity_client = IdentityAnalysisClient(st.session_state.credentials)
         
         # Get all unique identities
@@ -416,11 +441,32 @@ def render_identity_analysis_tab(iam_data, config):
         
         if user_identities:
             # Select user for detailed analysis
-            selected_user = st.selectbox(
-                "Select a user for detailed analysis:",
-                options=user_identities[:20],  # Limit to first 20 for performance
-                help="Showing first 20 users for performance"
-            )
+            # Show all users but with search capability
+            st.write(f"Total users available: {len(user_identities)}")
+            
+            # Add search functionality
+            search_user = st.text_input("🔍 Search for specific user (optional):", placeholder="Enter email or part of email")
+            
+            if search_user:
+                filtered_users = [u for u in user_identities if search_user.lower() in u.lower()]
+                display_users = filtered_users
+                st.write(f"Found {len(filtered_users)} users matching '{search_user}'")
+            else:
+                # Show first 100 users by default, but allow access to all
+                display_limit = min(100, len(user_identities))
+                display_users = user_identities[:display_limit]
+                if len(user_identities) > display_limit:
+                    st.write(f"Showing first {display_limit} users. Use search to find specific users.")
+            
+            if display_users:
+                selected_user = st.selectbox(
+                    "Select a user for detailed analysis:",
+                    options=display_users,
+                    help=f"Select from {len(display_users)} users"
+                )
+            else:
+                selected_user = None
+                st.warning("No users found matching search criteria.")
             
             if selected_user:
                 with st.spinner(f"Analyzing {selected_user}..."):
@@ -428,7 +474,18 @@ def render_identity_analysis_tab(iam_data, config):
                     st.markdown("#### 👥 Group Membership Analysis")
                     
                     try:
-                        memberships = identity_client.resolve_group_memberships(selected_user)
+                        # Add checkbox to enable expensive API calls
+                        enable_cloud_identity = st.checkbox(
+                            "Enable Cloud Identity API calls", 
+                            value=False, 
+                            help="May fail with HTTP 400 if not properly configured for your domain"
+                        )
+                        
+                        if enable_cloud_identity:
+                            with st.spinner("Resolving group memberships..."):
+                                memberships = identity_client.resolve_group_memberships(selected_user, enable_api_calls=True)
+                        else:
+                            memberships = identity_client.resolve_group_memberships(selected_user, enable_api_calls=False)
                         
                         col1, col2, col3 = st.columns(3)
                         
@@ -458,54 +515,77 @@ def render_identity_analysis_tab(iam_data, config):
                     # User activity tracking
                     st.markdown("#### 📈 Activity Pattern Analysis")
                     
-                    try:
-                        activity = identity_client.track_user_activity(selected_user, config['days_back'])
-                        
-                        col1, col2, col3, col4 = st.columns(4)
-                        
-                        with col1:
-                            st.metric("Activity Score", f"{activity['activity_score']}/100")
-                        
-                        with col2:
-                            st.metric("Login Events", activity['summary']['login_count'])
-                        
-                        with col3:
-                            st.metric("IAM Changes", activity['summary']['iam_changes_count'])
-                        
-                        with col4:
-                            st.metric("Resource Access", activity['summary']['resource_access_count'])
-                        
-                        # Activity timeline
-                        if activity['login_events']:
-                            st.markdown("**Recent Login Activity:**")
-                            login_df = pd.DataFrame(activity['login_events'])
-                            if not login_df.empty:
-                                st.dataframe(login_df.head(10), use_container_width=True)
-                        
-                        # Risk factors
-                        if activity.get('risk_factors'):
-                            st.markdown("**🚨 Risk Factors Detected:**")
-                            for risk in activity['risk_factors']:
-                                risk_level = risk.get('severity', 'low')
-                                if risk_level == 'high':
-                                    st.error(f"• {risk['description']}")
-                                elif risk_level == 'medium':
-                                    st.warning(f"• {risk['description']}")
-                                else:
-                                    st.info(f"• {risk['description']}")
+                    # Make this optional since it requires Cloud Logging permissions
+                    enable_activity_tracking = st.checkbox("Enable activity tracking", help="Requires Cloud Logging permissions and may be slow")
                     
-                    except Exception as e:
-                        st.warning(f"Activity tracking failed: {str(e)}")
-                        st.info("This may be due to missing Cloud Logging permissions")
+                    if enable_activity_tracking:
+                        try:
+                            with st.spinner("Analyzing user activity..."):
+                                activity = identity_client.track_user_activity(selected_user, config['days_back'])
+                        except Exception as e:
+                            st.warning(f"Activity tracking failed: {str(e)}")
+                            st.info("This may be due to missing Cloud Logging permissions")
+                            activity = identity_client._get_minimal_activity_data(selected_user)
+                    else:
+                        # Use minimal activity data
+                        activity = identity_client._get_minimal_activity_data(selected_user)
+                        st.info("📊 Using minimal activity data. Enable activity tracking for detailed analysis.")
+                    
+                    if activity:  # Process activity data regardless of source
+                        try:
+                            
+                            col1, col2, col3, col4 = st.columns(4)
+                            
+                            with col1:
+                                st.metric("Activity Score", f"{activity['activity_score']}/100")
+                            
+                            with col2:
+                                st.metric("Login Events", activity['summary']['login_count'])
+                            
+                            with col3:
+                                st.metric("IAM Changes", activity['summary']['iam_changes_count'])
+                            
+                            with col4:
+                                st.metric("Resource Access", activity['summary']['resource_access_count'])
+                            
+                            # Activity timeline
+                            if activity['login_events']:
+                                st.markdown("**Recent Login Activity:**")
+                                login_df = pd.DataFrame(activity['login_events'])
+                                if not login_df.empty:
+                                    st.dataframe(login_df.head(10), use_container_width=True)
+                            
+                            # Risk factors
+                            if activity.get('risk_factors'):
+                                st.markdown("**🚨 Risk Factors Detected:**")
+                                for risk in activity['risk_factors']:
+                                    risk_level = risk.get('severity', 'low')
+                                    if risk_level == 'high':
+                                        st.error(f"• {risk['description']}")
+                                    elif risk_level == 'medium':
+                                        st.warning(f"• {risk['description']}")
+                                    else:
+                                        st.info(f"• {risk['description']}")
+                        
+                        except Exception as e:
+                            st.warning(f"Error displaying activity data: {str(e)}")
         
         # Batch identity risk assessment
         st.subheader("🎯 Batch Risk Assessment")
         
-        if st.button("🔍 Analyze All User Identities"):
-            with st.spinner("Performing batch analysis..."):
+        st.info("ℹ️ Batch analysis will process all user identities. Cloud Identity operations may be skipped if API permissions are insufficient.")
+        
+        # Let user choose how many users to analyze, but allow full analysis
+        total_users = len(user_identities)
+        max_batch_size = min(50, total_users)  # Process in batches of 50 max for UI responsiveness
+        
+        num_users = st.slider("Number of users to analyze:", 1, total_users, min(max_batch_size, total_users))
+        
+        if st.button(f"🔍 Analyze {num_users} User Identities", help="Analyzes user identities with full IAM data, Cloud Identity operations are optional"):
+            with st.spinner(f"Performing batch analysis on {num_users} users..."):
                 try:
-                    # Limit to first 10 users for performance
-                    sample_users = user_identities[:10]
+                    # Use the user-selected number - no artificial limits
+                    sample_users = user_identities[:num_users]
                     batch_results = identity_client.batch_analyze_identities(sample_users)
                     
                     # Create summary table
@@ -1416,11 +1496,21 @@ def main():
     
     # Load IAM data
     if config['selected_projects']:
-        if st.session_state.iam_data_advanced is None:
+        # Create a cache key based on selected projects to detect changes
+        current_projects_key = hash(str(sorted(config['selected_projects'])))
+        last_projects_key = st.session_state.get('last_projects_key_advanced', None)
+        
+        # Reload data if project selection changed or no data exists
+        if (st.session_state.iam_data_advanced is None or 
+            current_projects_key != last_projects_key):
             st.session_state.iam_data_advanced = load_iam_data(config['selected_projects'])
+            st.session_state.last_projects_key_advanced = current_projects_key
+        
         iam_data = st.session_state.iam_data_advanced
     else:
         iam_data = None
+        st.session_state.iam_data_advanced = None
+        st.session_state.last_projects_key_advanced = None
     
     # Main content area
     st.title("🔒 Advanced GCP IAM Janitor")

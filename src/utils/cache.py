@@ -226,6 +226,14 @@ class ProgressTracker:
         """Mark progress as complete."""
         self.progress_bar.progress(1.0)
         self.status_text.text(final_message)
+    
+    def cleanup(self):
+        """Clean up Streamlit UI elements."""
+        try:
+            self.progress_bar.empty()
+            self.status_text.empty()
+        except Exception:
+            pass  # Ignore cleanup errors
 
 
 def create_identity_dataframe(identities: List[Identity]) -> pd.DataFrame:

@@ -7,6 +7,7 @@ for IAM policies across selected projects and organizations.
 
 import logging
 from typing import Dict, Any, List, Optional
+from datetime import timedelta
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
@@ -35,7 +36,6 @@ from ..utils.cache import (
 logger = logging.getLogger(__name__)
 
 
-@cached(ttl_minutes=30, key_prefix="overview")
 def load_iam_data(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
     Load and aggregate IAM data based on filters.
@@ -49,6 +49,19 @@ def load_iam_data(filters: Dict[str, Any]) -> Dict[str, Any]:
     credentials, _ = get_session_credentials()
     if not credentials:
         return {}
+    
+    # Check cache first, but handle UI elements properly
+    cache_manager = get_cache_manager()
+    cache_key = f"overview_load_iam_data_{cache_manager._generate_cache_key(filters)}"
+    
+    # Try to get cached data
+    cached_data = cache_manager.get(cache_key)
+    if cached_data is not None:
+        logger.debug("Cache hit for load_iam_data")
+        # Even with cached data, show a quick "Loading from cache" message
+        progress_placeholder = st.empty()
+        progress_placeholder.success("✅ Loading data from cache...")
+        return cached_data
     
     project_client = ProjectClient(credentials)
     org_client = OrganizationClient(credentials)
@@ -114,7 +127,7 @@ def load_iam_data(filters: Dict[str, Any]) -> Dict[str, Any]:
                     data['policies'].append(policy)
         
         # Process and aggregate data
-        progress.complete("Processing IAM data...")
+        progress.set_progress(total_steps, "Processing IAM data...")
         
         all_identities = {}
         all_roles = set()
@@ -160,10 +173,22 @@ def load_iam_data(filters: Dict[str, Any]) -> Dict[str, Any]:
         else:
             data['roles'] = cached_roles
         
+        # Complete the progress and clean up UI elements
+        progress.complete("Analysis complete!")
+        
+        # Cache the result for future use
+        cache_manager.set(cache_key, data, timedelta(minutes=30))
+        
         return data
         
     except Exception as e:
         logger.error(f"Error loading IAM data: {e}")
+        # Clean up any progress UI elements that might be hanging
+        try:
+            if 'progress' in locals():
+                progress.cleanup()
+        except:
+            pass
         st.error(f"Error loading data: {str(e)}")
         return data
 
