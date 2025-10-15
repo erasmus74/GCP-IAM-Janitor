@@ -18,12 +18,14 @@ from plotly.subplots import make_subplots
 import networkx as nx
 import numpy as np
 from datetime import datetime
+import json
 
 # Import our analytics module
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.analytics.insights import IAMInsights
+from src.compliance.compliance_analyzer import ComplianceAnalyzer, ComplianceFramework
 
 # Configure logging
 logging.basicConfig(
@@ -242,7 +244,7 @@ def create_grouping_opportunities_dashboard(grouping_data):
     st.subheader("👥 Detailed Grouping Opportunities")
     
     # Tabs for different group types
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎯 Exact Matches", "🔍 Similar Users", "📁 Project-Based", "🏢 Domain-Based", "🔍 Inactive Analysis"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🎯 Exact Matches", "🔍 Similar Users", "📁 Project-Based", "🏢 Domain-Based", "🔍 Inactive Analysis", "📃 Compliance"])
     
     with tab1:
         show_exact_match_groups(grouping_data.get('role_based_groups', []))
@@ -258,6 +260,9 @@ def create_grouping_opportunities_dashboard(grouping_data):
     
     with tab5:
         show_inactive_analysis(grouping_data.get('inactive_analysis', {}))
+    
+    with tab6:
+        show_compliance_analysis(grouping_data.get('compliance_analysis', {}))
 
 
 def show_exact_match_groups(groups):
@@ -516,6 +521,301 @@ def show_inactive_analysis(inactive_data):
                 st.write(f"- Recommendation: {sa['recommendation']}")
                 st.write("---")
 
+
+def show_compliance_analysis(compliance_data):
+    """Display compliance analysis across multiple frameworks."""
+    if not compliance_data:
+        st.info("No compliance analysis available. Run compliance analysis to see results.")
+        return
+    
+    # Overall compliance summary
+    overall_summary = compliance_data.get('overall_summary', {})
+    
+    if overall_summary:
+        st.subheader("🏆 Overall Compliance Summary")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            score = overall_summary.get('overall_score', 0)
+            st.metric("Overall Score", f"{score}%", help="Average compliance score across all frameworks")
+        
+        with col2:
+            status = overall_summary.get('overall_status', 'UNKNOWN')
+            status_color = {
+                'COMPLIANT': '🟢',
+                'PARTIAL': '🟡', 
+                'NON_COMPLIANT': '🔴'
+            }.get(status, '⚪')
+            st.metric("Status", f"{status_color} {status}")
+        
+        with col3:
+            frameworks = overall_summary.get('frameworks_count', 0)
+            st.metric("Frameworks", frameworks, help="Number of compliance frameworks analyzed")
+        
+        with col4:
+            findings = overall_summary.get('total_findings', 0)
+            st.metric("Total Findings", findings, help="Total compliance findings across all frameworks")
+        
+        # Findings breakdown
+        if overall_summary.get('critical_findings', 0) > 0 or overall_summary.get('high_findings', 0) > 0:
+            st.markdown("---")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                critical = overall_summary.get('critical_findings', 0)
+                st.metric("🔴 Critical", critical)
+            
+            with col2:
+                high = overall_summary.get('high_findings', 0)
+                st.metric("🟠 High", high)
+            
+            with col3:
+                medium = overall_summary.get('medium_findings', 0)
+                st.metric("🟡 Medium", medium)
+            
+            with col4:
+                low = overall_summary.get('low_findings', 0)
+                st.metric("🟢 Low", low)
+    
+    # Framework-specific results
+    framework_results = compliance_data.get('framework_results', {})
+    
+    if framework_results:
+        st.markdown("---")
+        st.subheader("📋 Framework-Specific Results")
+        
+        # Create tabs for each framework
+        framework_names = list(framework_results.keys())
+        if len(framework_names) > 0:
+            tabs = st.tabs([f"{name}" for name in framework_names])
+            
+            for i, (framework_name, result) in enumerate(framework_results.items()):
+                with tabs[i]:
+                    show_framework_compliance_details(framework_name, result)
+    
+    # Cross-framework issues
+    cross_issues = compliance_data.get('cross_framework_issues', [])
+    if cross_issues:
+        st.markdown("---")
+        st.subheader("⚠️ Cross-Framework Issues")
+        st.write(f"**{len(cross_issues)} issues** affect multiple compliance frameworks:")
+        
+        for issue in cross_issues:
+            st.markdown(f"""
+            <div class="high-impact">
+            <h5>🔴 {issue['issue_type'].replace('_', ' ').title()}</h5>
+            <p><strong>Affected Frameworks:</strong> {', '.join(issue['affected_frameworks'])}</p>
+            <p><strong>Impact:</strong> {issue['impact']}</p>
+            <p><strong>Priority:</strong> {issue['priority']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Consolidated recommendations
+    recommendations = compliance_data.get('recommendations', [])
+    if recommendations:
+        st.markdown("---")
+        st.subheader("🎯 Consolidated Recommendations")
+        
+        for rec in recommendations[:5]:  # Show top 5
+            priority_class = f"{rec['priority'].lower()}-impact"
+            
+            st.markdown(f"""
+            <div class="{priority_class}">
+            <h5>📋 {rec['control_area'].replace('_', ' ').title()} ({rec['priority']} Priority)</h5>
+            <p><strong>Affected Controls:</strong> {rec['affected_controls']}</p>
+            <p><strong>Frameworks Impacted:</strong> {rec['frameworks_impacted']}</p>
+            <p><strong>Recommendation:</strong> {rec['recommendation']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Export functionality
+    if compliance_data:
+        st.markdown("---")
+        st.subheader("📥 Export Compliance Report")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Export as JSON
+            json_data = json.dumps(compliance_data, indent=2, default=str)
+            st.download_button(
+                label="📥 Download JSON Report",
+                data=json_data,
+                file_name=f"compliance_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
+            )
+        
+        with col2:
+            # Export as CSV (summary)
+            csv_data = generate_compliance_csv(compliance_data)
+            st.download_button(
+                label="📥 Download CSV Summary",
+                data=csv_data,
+                file_name=f"compliance_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+        
+        with col3:
+            # Export as markdown report
+            markdown_data = generate_compliance_markdown(compliance_data)
+            st.download_button(
+                label="📥 Download Markdown Report",
+                data=markdown_data,
+                file_name=f"compliance_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
+                mime="text/markdown"
+            )
+
+
+def show_framework_compliance_details(framework_name: str, result: Dict[str, Any]):
+    """Show detailed compliance results for a specific framework."""
+    # Framework summary
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        score = result.get('overall_score', 0)
+        st.metric("Framework Score", f"{score}%")
+    
+    with col2:
+        compliant = result.get('compliant_controls', 0)
+        total = result.get('total_controls', 0)
+        st.metric("Compliant Controls", f"{compliant}/{total}")
+    
+    with col3:
+        findings = len(result.get('findings', []))
+        st.metric("Findings", findings)
+    
+    # Findings details
+    findings = result.get('findings', [])
+    if findings:
+        st.write("### Detailed Findings")
+        
+        # Group findings by severity
+        findings_by_severity = {
+            'CRITICAL': [],
+            'HIGH': [],
+            'MEDIUM': [],
+            'LOW': []
+        }
+        
+        for finding in findings:
+            severity = finding.get('severity', 'LOW')
+            findings_by_severity[severity].append(finding)
+        
+        # Show findings by severity
+        for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+            severity_findings = findings_by_severity[severity]
+            if severity_findings:
+                severity_icon = {
+                    'CRITICAL': '🔴',
+                    'HIGH': '🟠',
+                    'MEDIUM': '🟡',
+                    'LOW': '🟢'
+                }[severity]
+                
+                with st.expander(f"{severity_icon} {severity} Findings ({len(severity_findings)})", expanded=(severity in ['CRITICAL', 'HIGH'])):
+                    for finding in severity_findings:
+                        st.write(f"**{finding['control_id']}: {finding['control_name']}**")
+                        st.write(f"Status: {finding['status']}")
+                        st.write(f"Area: {finding['control_area']}")
+                        
+                        if finding.get('findings'):
+                            st.write("Issues:")
+                            for issue in finding['findings']:
+                                st.write(f"- {issue}")
+                        
+                        if finding.get('recommendation'):
+                            st.write(f"**Recommendation:** {finding['recommendation']}")
+                        
+                        st.write("---")
+    else:
+        st.success(f"No compliance issues found for {framework_name}!")
+
+
+def generate_compliance_csv(compliance_data: Dict[str, Any]) -> str:
+    """Generate CSV summary of compliance results."""
+    csv_lines = []
+    csv_lines.append("Framework,Score,Status,Total_Controls,Compliant_Controls,Findings_Count")
+    
+    framework_results = compliance_data.get('framework_results', {})
+    for framework_name, result in framework_results.items():
+        score = result.get('overall_score', 0)
+        compliant = result.get('compliant_controls', 0)
+        total = result.get('total_controls', 0)
+        findings_count = len(result.get('findings', []))
+        status = "COMPLIANT" if score >= 90 else "PARTIAL" if score >= 70 else "NON_COMPLIANT"
+        
+        csv_lines.append(f"{framework_name},{score},{status},{total},{compliant},{findings_count}")
+    
+    return "\n".join(csv_lines)
+
+
+def generate_compliance_markdown(compliance_data: Dict[str, Any]) -> str:
+    """Generate markdown compliance report."""
+    lines = []
+    
+    # Header
+    lines.append("# GCP IAM Compliance Report")
+    lines.append(f"Generated: {compliance_data.get('analysis_timestamp', datetime.now().isoformat())}")
+    lines.append("")
+    
+    # Overall summary
+    overall = compliance_data.get('overall_summary', {})
+    if overall:
+        lines.append("## Overall Summary")
+        lines.append(f"- **Overall Score:** {overall.get('overall_score', 0)}%")
+        lines.append(f"- **Status:** {overall.get('overall_status', 'UNKNOWN')}")
+        lines.append(f"- **Frameworks Analyzed:** {overall.get('frameworks_count', 0)}")
+        lines.append(f"- **Total Findings:** {overall.get('total_findings', 0)}")
+        lines.append("")
+        
+        lines.append("### Findings Breakdown")
+        lines.append(f"- **Critical:** {overall.get('critical_findings', 0)}")
+        lines.append(f"- **High:** {overall.get('high_findings', 0)}")
+        lines.append(f"- **Medium:** {overall.get('medium_findings', 0)}")
+        lines.append(f"- **Low:** {overall.get('low_findings', 0)}")
+        lines.append("")
+    
+    # Framework results
+    framework_results = compliance_data.get('framework_results', {})
+    if framework_results:
+        lines.append("## Framework Results")
+        lines.append("")
+        
+        for framework_name, result in framework_results.items():
+            lines.append(f"### {framework_name}")
+            lines.append(f"- **Score:** {result.get('overall_score', 0)}%")
+            lines.append(f"- **Compliant Controls:** {result.get('compliant_controls', 0)}/{result.get('total_controls', 0)}")
+            lines.append("")
+            
+            findings = result.get('findings', [])
+            if findings:
+                lines.append("#### Key Findings")
+                for finding in findings[:5]:  # Top 5 findings
+                    lines.append(f"- **{finding.get('control_id', 'N/A')}:** {finding.get('control_name', 'N/A')}")
+                    lines.append(f"  - Status: {finding.get('status', 'UNKNOWN')}")
+                    lines.append(f"  - Severity: {finding.get('severity', 'UNKNOWN')}")
+                    if finding.get('recommendation'):
+                        lines.append(f"  - Recommendation: {finding['recommendation']}")
+                    lines.append("")
+            else:
+                lines.append("✅ No compliance issues found!")
+                lines.append("")
+    
+    # Recommendations
+    recommendations = compliance_data.get('recommendations', [])
+    if recommendations:
+        lines.append("## Recommendations")
+        lines.append("")
+        
+        for rec in recommendations:
+            lines.append(f"### {rec.get('control_area', 'General').replace('_', ' ').title()} ({rec.get('priority', 'MEDIUM')} Priority)")
+            lines.append(f"- **Affected Controls:** {rec.get('affected_controls', 0)}")
+            lines.append(f"- **Frameworks Impacted:** {rec.get('frameworks_impacted', 0)}")
+            lines.append(f"- **Recommendation:** {rec.get('recommendation', 'Review and remediate')}")
+            lines.append("")
+    
+    return "\n".join(lines)
 
 def create_consolidation_network_graph(grouping_data):
     """Create a network graph showing user-role relationships."""
@@ -1150,6 +1450,29 @@ def main():
             value=True,
             help="Include gcloud commands for implementing groups"
         )
+        
+        # Compliance analysis options
+        st.markdown("---")
+        st.subheader("Compliance Analysis")
+        
+        enable_compliance = st.checkbox(
+            "Enable Compliance Analysis",
+            value=False,
+            help="Run compliance analysis against major frameworks (HITRUST, SOC2, HIPAA, etc.)"
+        )
+        
+        if enable_compliance:
+            available_frameworks = [
+                "HITRUST", "HIPAA", "SOC2", "SOC3", 
+                "ISO27001", "NIST", "PCI_DSS", "FEDRAMP"
+            ]
+            
+            selected_frameworks = st.multiselect(
+                "Select Compliance Frameworks",
+                available_frameworks,
+                default=["SOC2", "HITRUST"],
+                help="Choose which compliance frameworks to analyze against"
+            )
     
     if not selected_projects:
         st.info("Please select projects in the sidebar to begin consolidation analysis.")
@@ -1182,7 +1505,11 @@ def main():
         return
     
     # Run consolidation analysis
-    insights_cache_key = f"consolidation_insights_{cache_key}_{min_consolidation_value}"
+    compliance_suffix = ""
+    if enable_compliance and selected_frameworks:
+        compliance_suffix = f"_compliance_{'_'.join(selected_frameworks)}"
+    
+    insights_cache_key = f"consolidation_insights_{cache_key}_{min_consolidation_value}{compliance_suffix}"
     
     if insights_cache_key not in st.session_state:
         with st.spinner("🧠 Analyzing consolidation opportunities..."):
@@ -1196,6 +1523,26 @@ def main():
                         group for group in insights_data['grouping_opportunities'][group_type]
                         if group.get('consolidation_value', 0) >= min_consolidation_value
                     ]
+            
+            # Run compliance analysis if enabled
+            if enable_compliance and selected_frameworks:
+                with st.spinner("📃 Running compliance analysis..."):
+                    compliance_analyzer = ComplianceAnalyzer()
+                    
+                    # Convert framework names to enum values
+                    frameworks_to_analyze = []
+                    for fw_name in selected_frameworks:
+                        try:
+                            framework_enum = ComplianceFramework[fw_name]
+                            frameworks_to_analyze.append(framework_enum)
+                        except KeyError:
+                            st.warning(f"Unknown framework: {fw_name}")
+                    
+                    if frameworks_to_analyze:
+                        compliance_results = compliance_analyzer.analyze_compliance(
+                            insights_data, frameworks_to_analyze
+                        )
+                        insights_data['compliance_analysis'] = compliance_results
             
             st.session_state[insights_cache_key] = insights_data
     
