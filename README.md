@@ -106,7 +106,59 @@ A comprehensive web application for inventorying, analyzing, and managing Google
    streamlit run app_consolidation.py
    ```
 
-5. **Open your browser** to `http://localhost:8502`
+5. **Open your browser** to `http://localhost:8501`
+
+## 🐳 Docker Deployment
+
+### Quick Docker Start
+
+For a quick containerized deployment using Docker Compose:
+
+```bash
+# Start the consolidation dashboard
+./scripts/deploy.sh run consolidation
+
+# Or start other versions
+./scripts/deploy.sh run simple
+./scripts/deploy.sh run enhanced
+./scripts/deploy.sh run advanced
+```
+
+### Docker Commands
+
+```bash
+# View logs
+./scripts/deploy.sh logs
+
+# Stop containers
+./scripts/deploy.sh stop
+
+# View status
+./scripts/deploy.sh status
+
+# Clean up
+./scripts/deploy.sh clean
+```
+
+### Manual Docker Build
+
+```bash
+# Build the image
+docker compose build
+
+# Run with specific version
+docker compose up -d
+# Access at http://localhost:8501
+```
+
+### Docker Features
+
+- **🏗️ Multi-stage builds** with optimized uv dependency management
+- **🔒 Security-focused** with non-root user execution
+- **⚡ Fast builds** using Docker layer caching and uv
+- **🎯 Version support** for all dashboard variants (simple, enhanced, consolidation, advanced)
+- **📝 Health checks** for container monitoring
+- **🌐 Production ready** with proper error handling and logging
 
 ## 📸 Screenshots
 

@@ -1,0 +1,304 @@
+# GCP IAM Janitor - Production Docker Compose Configuration
+# This configuration is optimized for production deployments with pre-built images,
+# resource limits, and production-grade logging and monitoring.
+
+version: '3.8'
+
+services:
+  gcp-iam-janitor:
+    # Use pre-built image from GitHub Container Registry
+    # Update the tag to match your desired version and app type
+    image: ghcr.io/your-org/gcp-iam-janitor:latest-advanced
+    
+    container_name: gcp-iam-janitor-prod
+    
+    ports:
+      - "8501:8501"
+    
+    environment:
+      # Application configuration
+      - APP_VERSION=${APP_VERSION:-advanced}
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      
+      # GCP Configuration (use secrets in production)
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp_credentials
+      
+      # Logging and monitoring
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+      
+      # Optional: Performance tuning
+      - CACHE_TTL=${CACHE_TTL:-1800}
+      - MAX_CONCURRENT_PROJECTS=${MAX_CONCURRENT_PROJECTS:-10}
+    
+    # Use Docker secrets for sensitive data (recommended for production)
+    secrets:
+      - gcp_credentials
+    
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          # Adjust based on your needs and available resources
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+      
+      # Production restart policy
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    
+    # Production-grade health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    
+    # Production restart policy (for docker compose without swarm)
+    restart: unless-stopped
+    
+    # Production logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "service,version,environment"
+    
+    # Production labels for monitoring and organization
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gcp-iam-janitor.rule=Host(`iam-janitor.yourdomain.com`)"
+      - "traefik.http.routers.gcp-iam-janitor.tls=true"
+      - "traefik.http.routers.gcp-iam-janitor.tls.certresolver=letsencrypt"
+      - "project=gcp-iam-janitor"
+      - "environment=production"
+      - "version=${APP_VERSION:-advanced}"
+      - "maintainer=GCP-IAM-Janitor"
+      - "monitoring.prometheus.scrape=true"
+      - "monitoring.prometheus.port=8501"
+      - "monitoring.prometheus.path=/metrics"
+
+# Production network configuration
+networks:
+  default:
+    name: gcp-iam-janitor-prod-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Docker secrets configuration (recommended for production)
+secrets:
+  gcp_credentials:
+    # Option 1: External secret (recommended for production)
+    external: true
+    external_name: gcp_service_account_key
+    
+    # Option 2: File-based secret (for development/testing)
+    # file: ./secrets/gcp-service-account-key.json
+
+# Production volumes for persistent data (if needed)
+volumes:
+  app_logs:
+    driver: local
+    name: gcp-iam-janitor-logs
+  
+  app_cache:
+    driver: local
+    name: gcp-iam-janitor-cache
+
+# ============================================================================
+# Alternative Service Configurations for Different App Versions
+# ============================================================================
+
+  # Simple version for lightweight deployments
+  gcp-iam-janitor-simple:
+    profiles: ["simple"]
+    image: ghcr.io/your-org/gcp-iam-janitor:latest-simple
+    container_name: gcp-iam-janitor-simple-prod
+    ports:
+      - "8501:8501"
+    environment:
+      - APP_VERSION=simple
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp_credentials
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+    secrets:
+      - gcp_credentials
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    labels:
+      - "project=gcp-iam-janitor"
+      - "environment=production"
+      - "version=simple"
+
+  # Enhanced version for advanced analytics
+  gcp-iam-janitor-enhanced:
+    profiles: ["enhanced"]
+    image: ghcr.io/your-org/gcp-iam-janitor:latest-enhanced
+    container_name: gcp-iam-janitor-enhanced-prod
+    ports:
+      - "8501:8501"
+    environment:
+      - APP_VERSION=enhanced
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp_credentials
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+    secrets:
+      - gcp_credentials
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    labels:
+      - "project=gcp-iam-janitor"
+      - "environment=production"
+      - "version=enhanced"
+
+  # Consolidation version for IAM policy optimization
+  gcp-iam-janitor-consolidation:
+    profiles: ["consolidation"]
+    image: ghcr.io/your-org/gcp-iam-janitor:latest-consolidation
+    container_name: gcp-iam-janitor-consolidation-prod
+    ports:
+      - "8501:8501"
+    environment:
+      - APP_VERSION=consolidation
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp_credentials
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONUNBUFFERED=1
+    secrets:
+      - gcp_credentials
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    labels:
+      - "project=gcp-iam-janitor"
+      - "environment=production"
+      - "version=consolidation"
+
+# ============================================================================
+# Cloud Platform Integration Examples
+# ============================================================================
+
+# Example for AWS ECS/Fargate deployment:
+# - Use task definitions instead of docker compose
+# - Configure ALB for load balancing
+# - Use AWS Secrets Manager for credentials
+# - Set up CloudWatch for logging
+
+# Example for Azure Container Instances:
+# - Use Azure Resource Manager templates
+# - Configure Azure Key Vault for secrets
+# - Set up Azure Monitor for logging and metrics
+
+# Example for Kubernetes deployment:
+# - Convert to Kubernetes manifests (Deployment, Service, ConfigMap, Secret)
+# - Use Helm charts for templating
+# - Configure ingress controllers for external access
+# - Set up monitoring with Prometheus and Grafana
+
+# ============================================================================
+# Production Deployment Notes
+# ============================================================================
+
+# 1. Secrets Management:
+#    - Never include actual credentials in this file
+#    - Use Docker secrets, environment files, or external secret managers
+#    - Rotate credentials regularly
+
+# 2. Networking:
+#    - Configure proper firewall rules
+#    - Use reverse proxy (Traefik, Nginx) for SSL termination
+#    - Implement rate limiting and DDoS protection
+
+# 3. Monitoring:
+#    - Set up health checks and alerting
+#    - Monitor resource usage and performance metrics
+#    - Implement log aggregation and analysis
+
+# 4. Backup and Recovery:
+#    - Regularly backup configuration and data
+#    - Test disaster recovery procedures
+#    - Document rollback procedures
+
+# 5. Security:
+#    - Keep images updated with security patches
+#    - Use non-root users in containers
+#    - Implement network segmentation
+#    - Regular security scans and audits
