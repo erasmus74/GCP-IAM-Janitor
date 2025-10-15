@@ -503,7 +503,7 @@ class AuditAnalyzer:
             # Analyze service usage patterns
             service_counts = Counter()
             for entry in log_entries:
-                if hasattr(entry, 'payload') and entry.payload:
+                if hasattr(entry, 'payload') and entry.payload and hasattr(entry.payload, 'get'):
                     service_name = entry.payload.get('serviceName', 'unknown')
                     service_counts[service_name] += 1
             
@@ -523,7 +523,7 @@ class AuditAnalyzer:
             
             # Analyze IP addresses
             for entry in log_entries:
-                if hasattr(entry, 'payload') and entry.payload:
+                if hasattr(entry, 'payload') and entry.payload and hasattr(entry.payload, 'get'):
                     request_metadata = entry.payload.get('requestMetadata', {})
                     caller_ip = request_metadata.get('callerIp', '')
                     if caller_ip:
@@ -533,7 +533,7 @@ class AuditAnalyzer:
             if include_anomalies and len(pattern.ip_addresses) > 3:
                 ip_timeline = []
                 for entry in log_entries:
-                    if hasattr(entry, 'payload') and entry.payload:
+                    if hasattr(entry, 'payload') and entry.payload and hasattr(entry.payload, 'get'):
                         request_metadata = entry.payload.get('requestMetadata', {})
                         caller_ip = request_metadata.get('callerIp', '')
                         if caller_ip:
@@ -785,6 +785,16 @@ class AuditAnalyzer:
                 return None
             
             payload = entry.payload
+            
+            # Handle case where payload is a string instead of dict
+            if isinstance(payload, str):
+                logger.warning(f"Payload is string, cannot parse: {payload[:100]}...")
+                return None
+            
+            # Ensure payload has get method (is dict-like)
+            if not hasattr(payload, 'get'):
+                logger.warning(f"Payload is not dict-like: {type(payload)}")
+                return None
             
             return AuditLogEntry(
                 timestamp=entry.timestamp,

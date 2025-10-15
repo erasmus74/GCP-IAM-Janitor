@@ -202,33 +202,47 @@ def render_sidebar():
     else:
         filtered_options = project_options
     
-    # Multi-select with helper buttons
-    selected_project_names = st.sidebar.multiselect(
-        "Select projects to analyze:",
-        options=filtered_options,
-        default=st.session_state.selected_projects_advanced,
-        key="project_selector_advanced"
-    )
+    # Helper functions for button callbacks
+    def select_all_projects():
+        st.session_state.project_selector_advanced = filtered_options.copy()
     
-    # Helper buttons
+    def select_first_ten():
+        st.session_state.project_selector_advanced = filtered_options[:10].copy()
+    
+    def clear_projects():
+        st.session_state.project_selector_advanced = []
+    
+    # Helper buttons with callbacks
     col1, col2, col3 = st.sidebar.columns([1, 1, 1])
     
     with col1:
-        if st.button("✅ All"):
-            st.session_state.selected_projects_advanced = filtered_options.copy()
-            st.rerun()
+        st.button("✅ All", on_click=select_all_projects)
     
     with col2:
-        if st.button("🔟 First 10"):
-            st.session_state.selected_projects_advanced = filtered_options[:10].copy()
-            st.rerun()
+        st.button("🔟 First 10", on_click=select_first_ten)
     
     with col3:
-        if st.button("❌ Clear"):
-            st.session_state.selected_projects_advanced = []
-            st.rerun()
+        st.button("❌ Clear", on_click=clear_projects)
     
-    # Update session state
+    # Multi-select with helper buttons
+    # Initialize the multiselect key if it doesn't exist
+    if 'project_selector_advanced' not in st.session_state:
+        st.session_state.project_selector_advanced = st.session_state.selected_projects_advanced.copy()
+    
+    # Ensure default selection is compatible with current filtered options
+    valid_defaults = [proj for proj in st.session_state.project_selector_advanced 
+                     if proj in filtered_options]
+    
+    selected_project_names = st.sidebar.multiselect(
+        "Select projects to analyze:",
+        options=filtered_options,
+        key="project_selector_advanced"
+    )
+    
+    # Get the current value from the widget (which may be updated by callbacks)
+    selected_project_names = st.session_state.project_selector_advanced
+    
+    # Update the legacy session state for consistency
     st.session_state.selected_projects_advanced = selected_project_names
     
     # Extract project IDs
@@ -236,6 +250,10 @@ def render_sidebar():
     for project_name in selected_project_names:
         project_id = project_name.split('(')[-1].rstrip(')')
         selected_project_ids.append(project_id)
+    
+    # Debug info for troubleshooting
+    if selected_project_ids:
+        st.sidebar.info(f"ℹ️ Selected: {len(selected_project_ids)} projects")
     
     # Cache management
     st.sidebar.markdown("---")

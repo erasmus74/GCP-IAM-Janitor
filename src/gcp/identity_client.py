@@ -106,8 +106,8 @@ class IdentityAnalysisClient:
         
         try:
             # Search for groups this user is a member of
-            parent = f"groups/-"
-            query = f"member_key_id == '{user_email}' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels"
+            # Fix the query format - use proper member query syntax
+            query = f"member_key_id == 'user:{user_email}'"
             
             request = self.cloud_identity_service.groups().search(
                 query=query,
@@ -346,16 +346,15 @@ class IdentityAnalysisClient:
                     'request_metadata': {}
                 }
                 
-                if hasattr(entry, 'payload') and entry.payload:
+                if hasattr(entry, 'payload') and entry.payload and hasattr(entry.payload, 'get'):
                     payload = entry.payload
-                    if hasattr(payload, 'get'):
-                        event_data.update({
-                            'method': payload.get('methodName', ''),
-                            'service': payload.get('serviceName', ''),
-                            'caller_ip': payload.get('requestMetadata', {}).get('callerIp', ''),
-                            'user_agent': payload.get('requestMetadata', {}).get('userAgent', ''),
-                            'request_metadata': payload.get('requestMetadata', {})
-                        })
+                    event_data.update({
+                        'method': payload.get('methodName', ''),
+                        'service': payload.get('serviceName', ''),
+                        'caller_ip': payload.get('requestMetadata', {}).get('callerIp', ''),
+                        'user_agent': payload.get('requestMetadata', {}).get('userAgent', ''),
+                        'request_metadata': payload.get('requestMetadata', {})
+                    })
                 
                 events.append(event_data)
             
