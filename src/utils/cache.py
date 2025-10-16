@@ -30,28 +30,82 @@ T = TypeVar('T')
 
 class CacheManager:
     """Manages session-based caching for API responses and processed data."""
-    
+
     def __init__(self, default_ttl_minutes: int = 30):
         """
         Initialize cache manager.
-        
+
         Args:
             default_ttl_minutes: Default TTL for cached items in minutes
         """
         self.default_ttl = timedelta(minutes=default_ttl_minutes)
         self._ensure_cache_initialized()
-    
+
     def _ensure_cache_initialized(self):
         """Ensure cache containers exist in session state."""
         if 'iam_cache' not in st.session_state:
             st.session_state.iam_cache = {}
         if 'cache_timestamps' not in st.session_state:
             st.session_state.cache_timestamps = {}
+        if 'previous_filters' not in st.session_state:
+            st.session_state.previous_filters = {}
     
     def _generate_cache_key(self, *args, **kwargs) -> str:
         """Generate a cache key from function arguments."""
         key_data = str(args) + str(sorted(kwargs.items()))
         return hashlib.md5(key_data.encode()).hexdigest()
+
+    def invalidate_by_filter_change(self, current_filters: Dict[str, Any], context: str = "default") -> bool:
+        """
+        Intelligently invalidate cache based on filter changes.
+
+        Args:
+            current_filters: Current filter settings
+            context: Context identifier (e.g., "overview", "identities")
+
+        Returns:
+            bool: True if cache was invalidated, False otherwise
+        """
+        self._ensure_cache_initialized()
+
+        # Get previous filters for this context
+        filter_key = f"filters_{context}"
+        previous = st.session_state.previous_filters.get(filter_key)
+
+        # If filters haven't changed, no need to invalidate
+        if previous == current_filters:
+            return False
+
+        # Filters have changed - invalidate relevant cache entries
+        logger.info(f"Filter change detected for {context}, invalidating cache")
+
+        # Determine what changed
+        changed_keys = set()
+        if previous:
+            for key in set(list(current_filters.keys()) + list(previous.keys())):
+                if current_filters.get(key) != previous.get(key):
+                    changed_keys.add(key)
+        else:
+            changed_keys = set(current_filters.keys())
+
+        # Selective cache invalidation based on what changed
+        if changed_keys:
+            logger.debug(f"Changed filter keys: {changed_keys}")
+
+            # For now, clear all cache when filters change
+            # In future, could be more selective based on changed_keys
+            keys_to_delete = []
+            for key in st.session_state.iam_cache.keys():
+                if context in key or "load_iam_data" in key:
+                    keys_to_delete.append(key)
+
+            for key in keys_to_delete:
+                self.delete(key)
+
+        # Update stored filters
+        st.session_state.previous_filters[filter_key] = current_filters.copy()
+
+        return True
     
     def get(self, key: str) -> Optional[Any]:
         """

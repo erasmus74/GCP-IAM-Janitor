@@ -207,13 +207,18 @@ def main():
     with st.sidebar:
         st.title("🔐 GCP IAM Janitor")
         st.markdown("---")
-        
-        if st.button("🔄 Refresh Data"):
-            if 'projects_cache' in st.session_state:
-                del st.session_state['projects_cache']
-            if 'iam_data_cache' in st.session_state:
-                del st.session_state['iam_data_cache']
-        
+
+        # Intelligent auto-refresh info
+        st.info("💡 Data auto-refreshes when selection changes")
+
+        if st.button("🗑️ Clear All Cache"):
+            # Clear all cache entries
+            keys_to_delete = [key for key in st.session_state.keys() if 'cache' in key or 'iam_data_' in key]
+            for key in keys_to_delete:
+                del st.session_state[key]
+            st.success("Cache cleared!")
+            st.rerun()
+
         st.markdown("---")
         
         # Load projects

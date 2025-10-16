@@ -1360,12 +1360,17 @@ def main():
         st.markdown("*Smart Grouping Dashboard*")
         st.markdown("---")
         
-        if st.button("🔄 Refresh Analysis"):
+        # Intelligent auto-refresh info
+        st.info("💡 Data auto-refreshes when selection changes")
+
+        if st.button("🗑️ Clear All Cache"):
             # Clear all cache
             for key in list(st.session_state.keys()):
                 if 'cache' in key or 'consolidation' in key:
                     del st.session_state[key]
-        
+            st.success("Cache cleared!")
+            st.rerun()
+
         st.markdown("---")
         
         # Load projects

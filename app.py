@@ -171,27 +171,24 @@ def create_sidebar_navigation():
     # Cache controls
     st.sidebar.markdown("---")
     st.sidebar.subheader("Cache Controls")
-    
+
     cache_stats = get_cache_manager().get_cache_stats()
     st.sidebar.metric("Cached Items", cache_stats['active_items'])
-    
-    if st.sidebar.button("🗑️ Clear Cache"):
+
+    # Intelligent auto-refresh info
+    st.sidebar.info("💡 Data auto-refreshes when settings change")
+
+    if st.sidebar.button("🗑️ Clear All Cache"):
         get_cache_manager().clear()
         st.sidebar.success("Cache cleared!")
         st.rerun()
-    
-    # Auto-refresh
-    auto_refresh = st.sidebar.checkbox("Auto-refresh (30min)", value=True)
-    if auto_refresh:
-        st.sidebar.info("Data will auto-refresh every 30 minutes")
     
     filters = {
         'resource_scope': resource_scope,
         'selected_orgs': selected_orgs,
         'selected_projects': selected_projects,
         'identity_types': identity_types,
-        'role_types': role_types,
-        'auto_refresh': auto_refresh
+        'role_types': role_types
     }
     
     return page, filters

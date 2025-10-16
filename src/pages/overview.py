@@ -47,30 +47,34 @@ logger = logging.getLogger(__name__)
 
 def load_iam_data(filters: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Load and aggregate IAM data based on filters.
-    
+    Load and aggregate IAM data based on filters with intelligent cache invalidation.
+
     Args:
         filters: Dictionary containing filter criteria
-        
+
     Returns:
         Dict[str, Any]: Aggregated IAM data
     """
     credentials, _ = get_session_credentials()
     if not credentials:
         return {}
-    
-    # Check cache first, but handle UI elements properly
+
+    # Intelligent cache invalidation based on filter changes
     cache_manager = get_cache_manager()
+    cache_invalidated = cache_manager.invalidate_by_filter_change(filters, context="overview")
+
+    # Generate cache key
     cache_key = f"overview_load_iam_data_{cache_manager._generate_cache_key(filters)}"
-    
-    # Try to get cached data
-    cached_data = cache_manager.get(cache_key)
-    if cached_data is not None:
-        logger.debug("Cache hit for load_iam_data")
-        # Even with cached data, show a quick "Loading from cache" message
-        progress_placeholder = st.empty()
-        progress_placeholder.success("✅ Loading data from cache...")
-        return cached_data
+
+    # Try to get cached data (only if not invalidated)
+    if not cache_invalidated:
+        cached_data = cache_manager.get(cache_key)
+        if cached_data is not None:
+            logger.debug("Cache hit for load_iam_data")
+            # Even with cached data, show a quick "Loading from cache" message
+            progress_placeholder = st.empty()
+            progress_placeholder.success("✅ Loading data from cache...")
+            return cached_data
     
     project_client = ProjectClient(credentials)
     org_client = OrganizationClient(credentials)
